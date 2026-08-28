@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
+import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 
 const initialFilters = { quick: "", scope: "active", what: "", who: "", where: "", exclude: "", from: "", to: "" };
 
@@ -32,7 +33,7 @@ export function AdvancedSearchPanel({ expanded = false, initialValues, onDismiss
                     <button type="button" className={`icon-button search-options-toggle ${expanded ? "active" : ""}`} aria-expanded={expanded} aria-label={expanded ? "Hide search options" : "Show search options"} onClick={() => onExpandedChange(!expanded)}><MaterialIcon>{expanded ? "expand_less" : "arrow_drop_down"}</MaterialIcon></button>
                 </div>
                 {expanded && <><div className="advanced-search-fields">
-                    <label><span>Search in</span><select data-testid="search-scope" value={filters.scope} onChange={update("scope")}><option value="active">Active calendars</option><option value="all">All calendars</option></select></label>
+                    <div className="select-field"><span>Search in</span><SelectMenu ariaLabel="Search in" className="search-scope-menu" value={filters.scope} onChange={(value) => setFilters((current) => ({ ...current, scope: value }))} options={[{ value: "active", label: "Active calendars" }, { value: "all", label: "All calendars" }]} /></div>
                     <label><span>What</span><input value={filters.what} maxLength={100} placeholder="Keywords contained in event" onChange={update("what")} /></label>
                     <label><span>Who</span><input value={filters.who} maxLength={100} placeholder="Enter a participant, organizer, or creator" onChange={update("who")} /></label>
                     <label><span>Where</span><input value={filters.where} maxLength={100} placeholder="Enter a location or room" onChange={update("where")} /></label>

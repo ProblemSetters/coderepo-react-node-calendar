@@ -1,4 +1,5 @@
 import { insightRepository } from "./insight.repository.js";
+import { expandEvents } from "../events/recurrence.js";
 
 const dayMilliseconds = 24 * 60 * 60 * 1000;
 const workingDayMinutes = 8 * 60;
@@ -30,10 +31,11 @@ const categoryMetadata = [
 export const insightService = {
     async daily({ from, to, calendarIds }) {
         const historyFrom = new Date(from.getTime() - 6 * dayMilliseconds);
-        const [events, calendars] = await Promise.all([
+        let [events, calendars] = await Promise.all([
             insightRepository.findEvents(historyFrom, to, calendarIds),
             insightRepository.findCalendars(calendarIds),
         ]);
+        events = expandEvents(events, historyFrom, to);
         const calendarLookup = new Map(calendars.map((calendar) => [String(calendar._id), calendar]));
         const categoryMinutes = Object.fromEntries(categoryMetadata.map(({ key }) => [key, 0]));
         const calendarMinutes = new Map();

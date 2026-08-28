@@ -1,6 +1,6 @@
 # Calendar Quality Audit
 
-> Historical audit: superseded by [PROJECT_STATUS.md](./PROJECT_STATUS.md), which reflects the current profile, conflict, comparison, and color implementations and the latest 123-test verification run.
+> Archived point-in-time audit: superseded by [RELEASE_READINESS_AUDIT.md](./RELEASE_READINESS_AUDIT.md), which contains the current **154-test** verification, implemented-feature inventory, remaining backlog, authentication/repository corrections, and QuickBites comparison. The historical body below is intentionally not the release decision.
 
 | Audit field | Result |
 | --- | --- |
@@ -124,7 +124,7 @@ This audit uses representative partitions, boundaries, failure modes, and state 
 These are intentionally outside the approved v1 baseline and are not partially represented by dead controls:
 
 - Authentication, account switching, multi-user profiles, teams, and organizations.
-- Guest invitations, RSVP states, email delivery, and external directory synchronization.
+- Invitation email delivery, external directory/calendar synchronization, RSVP comments, and proposed-time handling.
 - Sharing permissions, public calendars, subscriptions, and live holiday-calendar integrations.
 - Recurrence rules and exceptions.
 - Google Meet or other conferencing providers.

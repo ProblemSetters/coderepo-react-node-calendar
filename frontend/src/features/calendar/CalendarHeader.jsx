@@ -9,7 +9,7 @@ const views = [
     { value: "month", label: "Month", shortcut: "M" },
 ];
 
-export function CalendarHeader({ cursor, onCreate, onProfileSwitch, onSearchClose, onSearchOpen, onSidebarToggle, profile, searchMode = false, setCursor, setView, view }) {
+export function CalendarHeader({ cursor, onCreate, onLogout, onProfileSwitch, onSearchClose, onSearchOpen, onSidebarToggle, profile, searchMode = false, setCursor, setView, view }) {
     const [viewMenuOpen, setViewMenuOpen] = useState(false);
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const viewMenuReference = useRef(null);
@@ -31,7 +31,6 @@ export function CalendarHeader({ cursor, onCreate, onProfileSwitch, onSearchClos
         return () => { document.removeEventListener("pointerdown", closeMenu); document.removeEventListener("keydown", closeOnEscape); };
     }, [profileMenuOpen]);
     const selectedView = views.find((option) => option.value === view) || views[1];
-    const firstName = profile?.name?.trim().split(/\s+/)[0] || "there";
     return (
         <header className="app-header">
             {searchMode ? <><button className="icon-button header-menu" aria-label="Back to calendar" onClick={onSearchClose}><MaterialIcon size={23}>arrow_back</MaterialIcon></button><h1 className="search-page-title">Search</h1></> : <><button className="icon-button header-menu" aria-label="Toggle sidebar" title="Main menu" onClick={onSidebarToggle}><MaterialIcon size={24}>menu</MaterialIcon></button>
@@ -51,8 +50,9 @@ export function CalendarHeader({ cursor, onCreate, onProfileSwitch, onSearchClos
                 {profile && <div className="profile-menu-anchor" ref={profileMenuReference}>
                     <button className="header-profile-button" aria-label={`${profile.name} profile`} aria-expanded={profileMenuOpen} aria-haspopup="menu" onClick={() => { setViewMenuOpen(false); setProfileMenuOpen((open) => !open); }}><ProfileAvatar profile={profile} size="small" /></button>
                     {profileMenuOpen && <div className="profile-menu" role="menu" aria-label="Profile menu">
-                        <div className="profile-menu-identity"><span className="profile-menu-label">CALENDAR PROFILE</span><ProfileAvatar profile={profile} size="medium" /><strong>Hi, {firstName}!</strong><span>{profile.email}</span></div>
+                        <div className="profile-menu-identity"><span className="profile-menu-label">CALENDAR PROFILE</span><ProfileAvatar profile={profile} size="medium" /><strong>{profile.name}</strong><span>{profile.email}</span></div>
                         <button className="profile-switch-button" role="menuitem" aria-label="Switch profile" onClick={() => { setProfileMenuOpen(false); onProfileSwitch(); }}><span className="profile-switch-icon"><MaterialIcon size={21}>group</MaterialIcon></span><span><strong>Switch profile</strong><small>Choose a different calendar</small></span><MaterialIcon size={20}>chevron_right</MaterialIcon></button>
+                        <button className="profile-signout-button" role="menuitem" onClick={() => { setProfileMenuOpen(false); onLogout(); }}><MaterialIcon size={19}>logout</MaterialIcon><span>Sign out</span></button>
                     </div>}
                 </div>}
             </div>}

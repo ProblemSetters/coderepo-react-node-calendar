@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { eventService } from "./event.service.js";
+import { isTimeZone } from "../../shared/utils/time-zone.js";
 
 const eventFields = {
     calendarId: z.string().min(1),
@@ -14,15 +15,31 @@ const eventFields = {
     endAt: z.coerce.date(),
     allDay: z.boolean(),
     color: z.union([z.string().regex(/^#[0-9A-Fa-f]{6}$/), z.null()]).optional(),
+    recurrence: z.object({
+        frequency: z.enum(["none", "daily", "weekly", "monthly", "yearly", "weekdays"]),
+        interval: z.number().int().min(1).max(99).default(1),
+        daysOfWeek: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+        monthlyMode: z.enum(["ordinalWeekday", "dayOfMonth"]).default("ordinalWeekday"),
+        endType: z.enum(["never", "count", "until"]).default("never"),
+        count: z.number().int().min(1).max(730).nullable().default(null),
+        until: z.coerce.date().nullable().default(null),
+        timeZone: z.string().min(1).max(100).default("UTC"),
+    }).superRefine((value, context) => {
+        if (value.frequency === "weekly" && !value.daysOfWeek.length) context.addIssue({ code: "custom", message: "Choose at least one weekday.", path: ["daysOfWeek"] });
+        if (value.endType === "count" && !value.count) context.addIssue({ code: "custom", message: "Enter an occurrence count.", path: ["count"] });
+        if (value.endType === "until" && !value.until) context.addIssue({ code: "custom", message: "Choose an end date.", path: ["until"] });
+        if (!isTimeZone(value.timeZone)) context.addIssue({ code: "custom", message: "Choose a valid time zone.", path: ["timeZone"] });
+    }).optional(),
 };
 const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/);
 const createSchema = z.object({ ...eventFields, type: eventFields.type.default("event"), description: eventFields.description.default(""), location: eventFields.location.default(""), organizer: eventFields.organizer.default("Calendar owner"), participants: eventFields.participants.default([]), participantIds: eventFields.participantIds.default([]), allDay: eventFields.allDay.default(false) });
 const updateSchema = z.object(eventFields).partial().refine((value) => Object.keys(value).length > 0, "Provide at least one field to update.");
+const responseSchema = z.object({ status: z.enum(["accepted", "declined", "tentative"]), scope: z.enum(["this", "following", "all"]).optional(), occurrenceStartAt: z.coerce.date().optional() }).strict();
 const listSchema = z.object({
     from: z.coerce.date(),
     to: z.coerce.date(),
     calendarIds: z.preprocess((value) => (value ? String(value).split(",").filter(Boolean) : []), z.array(objectIdSchema)),
-}).refine((value) => value.from < value.to, { message: "to must be after from", path: ["to"] });
+}).refine((value) => value.from < value.to, { message: "to must be after from", path: ["to"] }).refine((value) => value.to - value.from <= 370 * 86400000, { message: "Event ranges cannot exceed 370 days.", path: ["to"] });
 const searchSchema = z.object({
     q: z.string().trim().max(100).optional(),
     what: z.string().trim().max(100).optional(),
@@ -48,6 +65,9 @@ export async function getEvent(request, response, next) {
 }
 export async function updateEvent(request, response, next) {
     try { response.json({ data: await eventService.update(request.params.eventId, updateSchema.parse(request.body), request.profileId) }); } catch (error) { next(error); }
+}
+export async function respondToEvent(request, response, next) {
+    try { const input = responseSchema.parse(request.body); response.json({ data: await eventService.respond(request.params.eventId, input.status, request.profileId, input) }); } catch (error) { next(error); }
 }
 export async function deleteEvent(request, response, next) {
     try { await eventService.remove(request.params.eventId, request.profileId); response.status(204).send(); } catch (error) { next(error); }

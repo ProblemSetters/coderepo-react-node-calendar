@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
+import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 import { toDateInput } from "../../shared/utils/date.js";
+import { identityInitials } from "../../shared/utils/identity.js";
 import { availabilityApi } from "./availability.api.js";
 
-const initials = (name) => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const rawTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true });
 const formatTime = (date) => rawTimeFormatter.format(date).replace(/\b(am|pm)\b/gi, (period) => period.toUpperCase());
 const dateFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -74,12 +75,12 @@ export function SuggestedTimesDrawer({ cursor, people, onChoose, onClose }) {
             </header>
             <div className="suggestions-content">
                 <div className="suggestion-people" aria-label={`${people.length} selected ${people.length === 1 ? "person" : "people"}`}>
-                    {people.map((person) => <span className="person-avatar" key={person._id} style={{ backgroundColor: person.avatarColor }} title={`${person.name} (${person.email})`}>{initials(person.name)}</span>)}
+                    {people.map((person) => <span className="person-avatar" key={person._id} style={{ backgroundColor: person.avatarColor }} title={`${person.name} (${person.email})`}>{identityInitials(person.name)}</span>)}
                     <div><strong>{people.map((person) => person.name).join(", ")}</strong><small>{people.length + 1} attendees including you</small></div>
                 </div>
                 <div className="suggestion-controls">
                     <label>Starting date<input type="date" value={date} onChange={changeDate} onInput={changeDate} /></label>
-                    <label>Duration<select value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))}><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option></select></label>
+                    <div className="select-field">Duration<SelectMenu ariaLabel="Duration" value={durationMinutes} onChange={(value) => setDurationMinutes(Number(value))} options={[{ value: 30, label: "30 minutes" }, { value: 45, label: "45 minutes" }, { value: 60, label: "1 hour" }, { value: 90, label: "1.5 hours" }, { value: 120, label: "2 hours" }]} /></div>
                 </div>
                 <section className="availability-preview" aria-labelledby="availability-heading">
                     <div className="suggestions-section-title"><div><h3 id="availability-heading">Availability</h3><p>{dateFormatter.format(selectedDate)}</p></div><span>9 AM <i /> 6 PM</span></div>

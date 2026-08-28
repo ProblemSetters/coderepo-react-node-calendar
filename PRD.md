@@ -48,7 +48,7 @@ Invalid input must never corrupt persisted events. Failed operations must provid
 
 ## 4. Target user
 
-The v1 user is a single personal planner using Calendar on a desktop or laptop. The application uses a seeded local profile; login and multi-user collaboration are deliberately deferred.
+The v1 user is a candidate using Calendar on a desktop or laptop. One authenticated assessment workspace exposes a small allow-listed set of seeded profiles so organizer, attendee, RSVP, conflict, and availability scenarios can be exercised without repeatedly entering separate credentials.
 
 Typical needs include planning a work week, recording appointments, separating personal and work events, locating a past or future event, and checking an upcoming agenda.
 
@@ -65,10 +65,10 @@ Typical needs include planning a work week, recording appointments, separating p
 
 ## 6. Non-goals for version 1
 
-- User authentication, account switching, teams, or organizations.
-- Guest invitations, RSVP status, email delivery, or external contact-directory synchronization.
+- Production identity administration, account recovery, MFA, SSO, and cross-organization authorization. The assessment workspace does use password verification and signed, expiring sessions.
+- Invitation email delivery, external contact-directory/calendar synchronization, RSVP comments, or proposed-new-time workflows.
 - Calendar sharing, permissions, public calendars, or subscriptions.
-- Recurring events or exceptions to recurring series.
+- Per-instance edit/delete exceptions within recurring series.
 - Google Meet or other conferencing integrations.
 - Reminders and task completion workflows.
 - Drag-and-drop or resize-to-change-time interactions.
@@ -108,7 +108,9 @@ P0 and P1 are both included in the solution baseline. Priority controls implemen
 - Search button and search field state.
 - View menu containing only Day, Week, and Month with keyboard hints.
 
-No Settings, Help, application launcher, or profile buttons will be shown in v1 because their corresponding workflows are excluded.
+- Compact active-profile menu with Switch profile and Sign out actions.
+
+No Settings, Help, or application launcher controls are shown because their corresponding workflows are excluded.
 
 ### Left sidebar
 
@@ -221,6 +223,26 @@ Guest selection reuses the Meet-with directory picker. Search results show names
 - Successful creation closes the modal and displays the event without browser refresh.
 - Cancel or Escape discards unsaved input after confirmation when changes exist.
 
+### F8A. Invitation responses
+
+Every directory guest begins with an Awaiting response state. An invited profile can open the organizer-owned event and answer **Yes**, **Maybe**, or **No** without receiving Edit/Delete access. The preview updates in place, and the organizer sees aggregate counts plus each guest’s current response.
+
+Responses use the durable values `needsAction`, `accepted`, `tentative`, and `declined`. Retained guests keep their response when the guest list changes, newly added guests start pending, and a date/time/all-day change resets all invited guests to pending. Pending and tentative invitations are outlined, accepted invitations are filled, and declined invitations remain outlined and struck through without blocking that attendee’s availability.
+
+### F8B. Recurring events
+
+Events can repeat daily, weekly, monthly, annually, every weekday, or through a custom interval/day/ending rule. Calendar reads expand one durable series record into stable occurrence identities while preserving local wall time across daylight-saving transitions. Recurring RSVP requires an explicit scope—this event, this and following events, or all events—and applies exact-instance, following, and series responses in that precedence order.
+
+Pending/tentative invitations are white with a calendar-colored outline, accepted invitations use a filled calendar color, and declined invitations are outlined and struck through. Search, insights, guest conflicts, and suggested-time busy calculations consume the same generated occurrences and response resolution.
+
+**Acceptance criteria**
+
+- Only a currently invited profile may respond; organizer and non-attendee attempts fail without changing the event.
+- Each response records a server timestamp, can be changed later, and survives refresh/profile switching.
+- Invalid statuses and malformed event IDs use the standard API error envelope.
+- Failed responses leave the preview open, preserve the last saved answer, and show one contextual error.
+- The controls are keyboard-accessible, expose pressed state, and remain usable at phone widths.
+
 ### F9. Event preview, editing, and deletion
 
 Selecting an event opens a compact preview showing title, date/time, calendar, location, description, and Edit/Delete actions. Edit opens the full event form. Delete requires explicit confirmation containing the event title.
@@ -331,8 +353,6 @@ The drawer shows a daily availability visualization, ranked free slots, the numb
 | `color` | Required six-digit hex color. |
 | `visible` | Persisted boolean, default `true`. |
 | `isPrimary` | Server-managed boolean. Exactly one primary calendar. |
-| `participants` | Canonical display names, including backward-compatible name-only guests. |
-| `participantIds` | Unique references to directory people used for conflict detection. |
 | timestamps | Server-managed creation and update timestamps. |
 
 ### Event entity
@@ -347,6 +367,9 @@ The drawer shows a daily availability visualization, ranked free slots, the numb
 | `startAt`, `endAt` | Required UTC instants; end strictly after start. |
 | `allDay` | Required boolean. |
 | `color` | Optional event-specific color override. |
+| `participants` | Canonical display names, including backward-compatible name-only guests. |
+| `participantIds` | Unique references to directory people used for visibility, conflicts, and RSVP authorization. |
+| `attendeeResponses` | Unique directory-person responses with `status` and nullable `respondedAt`. |
 | timestamps | Server-managed creation and update timestamps. |
 
 MongoDB stores UTC datetimes. The frontend displays them in the browser’s local timezone. Availability requests also send the selected local calendar date and browser IANA timezone so working-hour and weekend calculations remain correct across UTC offsets and daylight-saving transitions. Cross-timezone event editing is not included in v1.
@@ -369,6 +392,11 @@ All endpoints use `/api/v1`, JSON, and a consistent success/error envelope. Deta
 | Method | Endpoint | Product purpose |
 | --- | --- | --- |
 | GET | `/health` | Confirm API and database availability. |
+| POST | `/auth/login` | Verify the assessment workspace password and issue an expiring workspace JWT. |
+| GET | `/auth/session` | Restore and validate an existing workspace or profile session. |
+| POST | `/auth/switch-profile` | Verify that a profile is allow-listed and issue a profile-scoped JWT. |
+| POST | `/auth/logout` | Complete the sign-out protocol; the client then removes its local credentials. |
+| GET | `/profiles` | List only profiles available to the authenticated workspace. |
 | GET | `/calendars` | Load all calendars and visibility preferences. |
 | POST | `/calendars` | Create a secondary calendar. |
 | POST | `/calendars/:calendarId/display-only` | Persist an exclusive calendar visibility selection. |
@@ -385,7 +413,7 @@ All endpoints use `/api/v1`, JSON, and a consistent success/error envelope. Deta
 | POST | `/availability/suggestions` | Find conflict-free shared working-hour slots for selected people. |
 | POST | `/availability/conflicts` | Check a proposed interval against selected people immediately before save. |
 
-Success uses `{ "data": ... }`. Failure uses `{ "error": { "code", "message", "details?" } }`. The API must distinguish validation, unknown resource, conflict, and unexpected server errors.
+Success uses `{ "data": ... }`. Failure uses `{ "error": { "code", "message", "details?" } }`. Except for health and login, workspace endpoints require an `Authorization: Bearer <JWT>` header; calendar data requires a profile-scoped token. The API must distinguish authentication, authorization, validation, unknown resource, conflict, and unexpected server errors.
 
 ## 13. Success criteria
 

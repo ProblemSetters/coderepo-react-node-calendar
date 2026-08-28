@@ -4,7 +4,7 @@ import { personRepository } from "./person.repository.js";
 
 export const personService = {
     search: (query, limit, excludedId) => personRepository.search(query, limit, excludedId),
-    listProfiles: () => personRepository.listProfiles(),
+    listProfiles: (ids) => personRepository.listProfiles(ids),
     findProfileById: (id) => personRepository.findProfileById(id),
     findExisting: (ids) => personRepository.findByIds(ids),
     async getSelected(ids) {

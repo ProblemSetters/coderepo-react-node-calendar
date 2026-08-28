@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { Modal } from "../../shared/components/Modal.jsx";
+import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 import { addDays, dateKey, eventDefaults } from "../../shared/utils/date.js";
 import { PeoplePicker } from "../people/PeoplePicker.jsx";
 import { availabilityApi } from "../people/availability.api.js";
@@ -8,6 +9,7 @@ import { DatePickerPopover } from "./DatePickerPopover.jsx";
 import { TimeCombobox } from "./TimeCombobox.jsx";
 import { combineDateAndTime, formatTimeInput, timeValue } from "./editor-date-time.js";
 import { calendarColors } from "../calendar/calendar-colors.js";
+import { RepeatSelector } from "./RepeatSelector.jsx";
 
 const palette = [
     { color: "", label: "Calendar color" },
@@ -26,6 +28,7 @@ const shiftEndWithStart = (oldStart, oldEnd, newStart) => oldStart && oldEnd && 
 const durationLabel = (minutes) => minutes < 60 ? `${minutes} mins` : `${minutes / 60} ${minutes === 60 ? "hr" : "hrs"}`;
 const objectIdPattern = /^[0-9a-fA-F]{24}$/;
 const formatConflictTime = (value) => new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+const formatWorkingMinute = (minute) => new Date(2000, 0, 1, Math.floor(minute / 60), minute % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 const participantPeople = (draft, participants) => {
     if (Array.isArray(draft?.participantPeople) && draft.participantPeople.length) return draft.participantPeople;
     const seen = new Set();
@@ -39,7 +42,7 @@ const participantPeople = (draft, participants) => {
 
 export function EventEditor({ calendars, draft, onClose, onSave }) {
     const defaults = useMemo(() => {
-        if (draft?._id) return { ...draft, type: draft.type || "event" };
+        if (draft?._id) return { ...draft, startAt: draft.seriesStartAt || draft.startAt, endAt: draft.seriesEndAt || draft.endAt, type: draft.type || "event" };
         const type = draft?.type || "event";
         const config = typeConfig[type];
         const base = eventDefaults(draft?.cursor || new Date(), draft?.startAt);
@@ -57,10 +60,11 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
     const [endTimeValid, setEndTimeValid] = useState(true);
     const [calendarId, setCalendarId] = useState(String(defaults.calendarId || ""));
     const [guests, setGuests] = useState(() => participantPeople(draft, defaults.participants || []));
+    const [recurrence, setRecurrence] = useState(defaults.recurrence || { frequency: "none", interval: 1, daysOfWeek: [], monthlyMode: "ordinalWeekday", endType: "never", count: null, until: null, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
-    const [conflictState, setConflictState] = useState({ checking: false, error: "", conflicts: [], key: "" });
+    const [conflictState, setConflictState] = useState({ checking: false, error: "", conflicts: [], workingHoursWarnings: [], key: "" });
     const conflictRequest = useRef(0);
     const config = typeConfig[type] || typeConfig.event;
     const startAt = allDay ? new Date(`${startDate}T00:00:00`) : combineDateAndTime(startDate, startTime);
@@ -82,7 +86,7 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
         if (!validRange || !guestIds.length) return null;
         const conflictStart = allDay ? new Date(`${startDate}T00:00:00`) : combineDateAndTime(startDate, startTime);
         const conflictEnd = allDay ? addDays(new Date(`${endDate}T00:00:00`), 1) : combineDateAndTime(endDate, endTime);
-        return { participantIds: guestIds, startAt: conflictStart.toISOString(), endAt: conflictEnd.toISOString() };
+        return { participantIds: guestIds, startAt: conflictStart.toISOString(), endAt: conflictEnd.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" };
     }, [allDay, endDate, endTime, guestIds, startDate, startTime, validRange]);
     const conflictKey = conflictPayload ? JSON.stringify(conflictPayload) : "";
     const conflictPending = Boolean(conflictPayload && conflictState.key !== conflictKey) || conflictState.checking;
@@ -90,15 +94,15 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
         const currentRequest = ++conflictRequest.current;
         const timer = window.setTimeout(async () => {
             if (!conflictPayload) {
-                setConflictState({ checking: false, error: "", conflicts: [], key: "" });
+                setConflictState({ checking: false, error: "", conflicts: [], workingHoursWarnings: [], key: "" });
                 return;
             }
             setConflictState((current) => ({ ...current, checking: true, error: "" }));
             try {
                 const result = await availabilityApi.conflicts(conflictPayload);
-                if (currentRequest === conflictRequest.current) setConflictState({ checking: false, error: "", conflicts: result.conflicts, key: conflictKey });
+                if (currentRequest === conflictRequest.current) setConflictState({ checking: false, error: "", conflicts: result.conflicts || [], workingHoursWarnings: result.workingHoursWarnings || [], key: conflictKey });
             } catch (conflictError) {
-                if (currentRequest === conflictRequest.current) setConflictState({ checking: false, error: conflictError.message, conflicts: [], key: conflictKey });
+                if (currentRequest === conflictRequest.current) setConflictState({ checking: false, error: conflictError.message, conflicts: [], workingHoursWarnings: [], key: conflictKey });
             }
         }, conflictPayload ? 300 : 0);
         return () => window.clearTimeout(timer);
@@ -117,6 +121,9 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
             const durationDays = Math.max(0, Math.round((new Date(`${endDate}T00:00:00`) - new Date(`${startDate}T00:00:00`)) / 86400000));
             setEndDate(dateKey(addDays(new Date(`${nextDate}T00:00:00`), durationDays)));
         } else applyShiftedEnd(nextStart);
+        if (recurrence.frequency === "weekly" && recurrence.daysOfWeek?.length === 1 && recurrence.daysOfWeek[0] === new Date(`${startDate}T00:00:00`).getDay()) {
+            setRecurrence({ ...recurrence, daysOfWeek: [new Date(`${nextDate}T00:00:00`).getDay()] });
+        }
         setStartDate(nextDate); markDirty();
     };
     const changeStartTime = (nextTime) => {
@@ -159,9 +166,9 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
         try {
             if (conflictPayload) {
                 const latest = await availabilityApi.conflicts(conflictPayload);
-                setConflictState({ checking: false, error: "", conflicts: latest.conflicts, key: conflictKey });
+                setConflictState({ checking: false, error: "", conflicts: latest.conflicts || [], workingHoursWarnings: latest.workingHoursWarnings || [], key: conflictKey });
             }
-            await onSave({ title: title.trim(), type, description: values.description.trim(), location: values.location.trim(), participants: guests.map((person) => person.name.trim()).filter(Boolean), participantIds: guestIds, calendarId, color: values.color || null, allDay, startAt: startAt.toISOString(), endAt: endAt.toISOString() });
+            await onSave({ title: title.trim(), type, description: values.description.trim(), location: values.location.trim(), participants: guests.map((person) => person.name.trim()).filter(Boolean), participantIds: guestIds, calendarId, color: values.color || null, allDay, startAt: startAt.toISOString(), endAt: endAt.toISOString(), recurrence });
         } catch (saveError) { setError(saveError.message); setSaving(false); }
     };
     return <Modal className="event-editor-modal" onClose={close}><form className="event-editor" onSubmit={submit} onChange={markDirty}>
@@ -176,15 +183,17 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
                 {spansMultipleDays && <DatePickerPopover label="End date" value={endDate} onChange={(value) => { setEndDate(value); markDirty(); }} />}
             </div>
             <label className="checkbox-label"><input type="checkbox" checked={allDay} onChange={(event) => changeAllDay(event.target.checked)} />All day</label>
+            <RepeatSelector startAt={startAt?.toISOString() || new Date().toISOString()} value={recurrence} onChange={(value) => { setRecurrence(value); markDirty(); }} />
             {!validRange && <small className="inline-range-error">{allDay ? "End date must be on or after start date" : "Enter a valid end time after the start time"}</small>}
         </div></div>
-        <div className="form-row"><span className="calendar-swatch" style={{ backgroundColor: calendars.find((calendar) => calendar._id === calendarId)?.color }} /><label>Calendar<select name="calendarId" required value={calendarId} onChange={(event) => { setCalendarId(event.target.value); markDirty(); }}>{calendars.map((calendar) => <option value={calendar._id} key={calendar._id}>{calendar.name}</option>)}</select></label></div>
+        <div className="form-row"><span className="calendar-swatch" style={{ backgroundColor: calendars.find((calendar) => calendar._id === calendarId)?.color }} /><div className="select-field">Calendar<SelectMenu ariaLabel="Calendar" value={calendarId} onChange={(value) => { setCalendarId(String(value)); markDirty(); }} options={calendars.map((calendar) => ({ value: calendar._id, label: calendar.name }))} /></div></div>
         <div className="form-row"><MaterialIcon>location_on</MaterialIcon><label><span className="sr-only">Location</span><input name="location" maxLength={250} defaultValue={defaults.location} placeholder="Add location" /></label></div>
         <div className="form-row event-guests-row"><MaterialIcon>group</MaterialIcon><div><PeoplePicker className="event-people-picker" inputLabel="Search guests" maxSelected={100} onSelectionChange={(people) => { setGuests(people); markDirty(); }} placeholder="Add guests" selectedLabel="Selected guests" selectedPeople={guests} showLeadingIcon={false} />
             {conflictPending && <p className="guest-conflict-check" role="status"><MaterialIcon size={16}>sync</MaterialIcon>Checking guest availability…</p>}
             {!conflictPending && conflictState.error && <p className="guest-conflict-error" role="alert"><MaterialIcon size={16}>error_outline</MaterialIcon>Guest availability could not be checked. {conflictState.error}</p>}
             {!conflictPending && conflictState.conflicts.length > 0 && <div className="guest-conflict-warning" role="alert"><MaterialIcon size={19}>warning_amber</MaterialIcon><div><strong>{conflictState.conflicts.length === 1 ? `${conflictState.conflicts[0].person.name} is unavailable` : `${conflictState.conflicts.length} guests are unavailable`}</strong>{conflictState.conflicts.map(({ person, busy }) => <span key={person._id}>{person.name}: {busy.map((block) => `${formatConflictTime(block.startAt)}–${formatConflictTime(block.endAt)}`).join(", ")}</span>)}</div></div>}
-            {!conflictPending && !conflictState.error && conflictPayload && conflictState.conflicts.length === 0 && <p className="guest-available"><MaterialIcon size={16}>check_circle</MaterialIcon>All guests are available</p>}
+            {!allDay && !conflictPending && conflictState.workingHoursWarnings.length > 0 && <div className="guest-hours-warning" role="status"><MaterialIcon size={19}>schedule</MaterialIcon><div><strong>Outside working hours</strong>{conflictState.workingHoursWarnings.map(({ person }) => <span key={person._id}>{person.name}: {formatWorkingMinute(person.workingHours.startMinute)}–{formatWorkingMinute(person.workingHours.endMinute)} ({person.timeZone.replaceAll("_", " ")})</span>)}</div></div>}
+            {!conflictPending && !conflictState.error && conflictPayload && conflictState.conflicts.length === 0 && (allDay || conflictState.workingHoursWarnings.length === 0) && <p className="guest-available"><MaterialIcon size={16}>check_circle</MaterialIcon>All guests are available</p>}
         </div></div>
         <div className="form-row"><MaterialIcon>subject</MaterialIcon><label><span className="sr-only">Description</span><textarea name="description" maxLength={2000} rows={3} defaultValue={defaults.description} placeholder="Add description" /></label></div>
         <div className="form-row"><MaterialIcon>palette</MaterialIcon><fieldset className="color-palette"><legend>Event color</legend>{palette.map(({ color, label }) => <label title={label} key={label} className={color ? "color-choice" : "color-choice calendar-color-choice"} style={color ? { "--choice": color } : undefined}><input name="color" type="radio" value={color} defaultChecked={(defaults.color || "") === color} /><span>{color ? <MaterialIcon size={15}>check</MaterialIcon> : <MaterialIcon size={17}>event</MaterialIcon>}</span><span className="sr-only">{label}</span></label>)}</fieldset></div>

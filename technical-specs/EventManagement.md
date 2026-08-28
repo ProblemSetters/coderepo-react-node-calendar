@@ -8,6 +8,9 @@
 - Same-day editing shows one clean row containing the date followed by the start/end time range. The end date appears only when the event crosses into another day.
 - Moving the start preserves the current duration. Invalid text, an empty title, a missing calendar, or a non-positive range disables Save and exposes an inline range error.
 - Guests use the shared, debounced people-directory listbox used by Meet with. It supports name/email search, loading/empty/error and retry states, arrow-key selection, duplicate filtering, removable chips, and prefilled legacy participant names. Saved events send canonical names in `participants` and directory references in `participantIds`; responses expose `participantPeople` to preserve identity when directory and name-only guests are mixed.
+- Invited profiles see a Google-style Going? control in the read-only preview. `accepted`, `tentative`, and `declined` map to Yes, Maybe, and No; `needsAction` maps to Awaiting response. Organizer previews show a response summary and per-directory-guest status.
+- Repeat offers Does not repeat, Daily, Weekly on the selected weekday, Monthly on the ordinal weekday, Annually on the selected date, Every weekday, and Custom. Custom recurrence supports intervals, weekly day sets, monthly day/ordinal modes, and never/date/count endings in an IANA time zone. Occurrences preserve their local wall time across DST.
+- Pending/tentative invitations are unfilled and outlined, accepted invitations are filled, and declined invitations are outlined and struck through. Declined occurrences are excluded from only that attendee's busy schedule. Schedule or recurrence changes reset responses; guest-list-only edits preserve retained responses and initialize new guests as pending.
 
 ## API contract
 
@@ -33,6 +36,10 @@ Requires `calendarId`, `title`, `startAt`, and `endAt`. Supports `type`, `descri
 
 Accepts a non-empty partial event. Validation applies to the merged persisted event. Omitted fields are never reset.
 
+### `PATCH /api/v1/events/:eventId/response`
+
+Requires an authenticated profile-scoped bearer JWT and a strict body `{ "status": "accepted" | "tentative" | "declined", "scope"?: "this" | "following" | "all", "occurrenceStartAt"?: ISO datetime }`. Recurring RSVP opens a scope dialog; occurrence time is required for `this` and `following`. An exact-instance override wins over the newest applicable following override, which wins over the series default. An `all` response atomically updates the default and clears that attendee's overrides. Only a person currently present in `participantIds` may respond. Missing authentication returns `401 AUTH_REQUIRED`, a workspace session without an active profile returns `401 PROFILE_REQUIRED`, a non-attendee returns `403 NOT_EVENT_ATTENDEE`, and an event changed during the write returns `409 INVITATION_CHANGED`.
+
 ### `DELETE /api/v1/events/:eventId`
 
 Returns `204` or `404 EVENT_NOT_FOUND`.
@@ -47,4 +54,4 @@ Returns `204` or `404 EVENT_NOT_FOUND`.
 
 ## Validation
 
-Title is 1–140 trimmed characters; description is at most 2,000; location is at most 250; end is strictly after start; referenced calendar and identifiers must be valid.
+Title is 1–140 trimmed characters; description is at most 2,000; location is at most 250; end is strictly after start; referenced calendar and identifiers must be valid. Event list windows are capped at 370 days. Recurrence intervals are 1–99, counts are 1–730, weekly rules require a day, zones must be valid IANA zones, and an until date cannot precede the series. Attendee response records are unique by person and accept only `needsAction`, `accepted`, `tentative`, or `declined`.

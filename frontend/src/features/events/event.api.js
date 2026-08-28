@@ -16,5 +16,6 @@ export const eventApi = {
     get: (id) => request(`/events/${id}`),
     create: (event) => request("/events", { method: "POST", body: JSON.stringify(event) }),
     update: (id, event) => request(`/events/${id}`, { method: "PATCH", body: JSON.stringify(event) }),
+    respond: (id, status, options = {}) => request(`/events/${id}/response`, { method: "PATCH", body: JSON.stringify({ status, ...options }) }),
     remove: (id) => request(`/events/${id}`, { method: "DELETE" }),
 };

@@ -5,9 +5,9 @@ import { insightApi } from "../features/insights/insight.api.js";
 import { availabilityApi } from "../features/people/availability.api.js";
 import { peopleApi } from "../features/people/people.api.js";
 import { profileApi } from "../features/profiles/profile.api.js";
-import { request, setActiveProfileId } from "../shared/api/client.js";
+import { hasSessionToken, request, setProfileToken, setSessionToken } from "../shared/api/client.js";
 
-beforeEach(() => { globalThis.fetch = vi.fn(); setActiveProfileId(""); });
+beforeEach(() => { globalThis.fetch = vi.fn(); setProfileToken(""); setSessionToken(""); });
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe("API client", () => {
@@ -32,6 +32,15 @@ describe("API client", () => {
         await expect(request("/events")).rejects.toThrow("invalid response");
     });
 
+    test("clears an expired authenticated session and notifies the application", async () => {
+        setSessionToken("expired-workspace-token"); setProfileToken("expired-profile-token");
+        const expired = vi.fn(); window.addEventListener("calendar-session-expired", expired, { once: true });
+        fetch.mockResolvedValueOnce({ ok: false, status: 401, headers: { get: () => "application/json" }, json: async () => ({ error: { code: "INVALID_TOKEN", message: "Session expired" } }) });
+        await expect(request("/calendars")).rejects.toThrow("Session expired");
+        expect(hasSessionToken()).toBe(false);
+        expect(expired).toHaveBeenCalledOnce();
+    });
+
     test("encodes event ranges and advanced search parameters safely", async () => {
         fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: [] }) });
         await eventApi.list("2026-08-27T00:00:00+05:30", "2026-08-28T00:00:00+05:30", ["one", "two"]);
@@ -51,12 +60,16 @@ describe("API client", () => {
         expect(fetch.mock.calls[1][1]).toEqual(expect.objectContaining({ method: "PATCH", body: JSON.stringify({ visible: false }) }));
         await insightApi.daily("from", "to", ["one", "two"]);
         expect(fetch.mock.calls[2][0]).toContain("calendarIds=one%2Ctwo");
+        await eventApi.respond("event-1", "tentative");
+        expect(fetch.mock.calls[3]).toEqual([expect.stringContaining("/events/event-1/response"), expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "tentative" }) })]);
+        await eventApi.respond("event-1", "accepted", { scope: "following", occurrenceStartAt: "2026-08-27T09:00:00.000Z" });
+        expect(fetch.mock.calls[4][1].body).toBe(JSON.stringify({ status: "accepted", scope: "following", occurrenceStartAt: "2026-08-27T09:00:00.000Z" }));
     });
 
     test("encodes people searches and posts availability criteria", async () => {
         fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: [] }) });
-        await peopleApi.search("Diya & Aarav");
-        expect(fetch.mock.calls[0][0]).toContain("/people?q=Diya%20%26%20Aarav&limit=20");
+        await peopleApi.search("Sky & Sage");
+        expect(fetch.mock.calls[0][0]).toContain("/people?q=Sky%20%26%20Sage&limit=20");
         const payload = { participantIds: ["person-1"], from: "2026-08-27", timeZone: "Asia/Kolkata", days: 5, durationMinutes: 30 };
         await availabilityApi.suggestions(payload);
         expect(fetch.mock.calls[1][1]).toEqual(expect.objectContaining({ method: "POST", body: JSON.stringify(payload) }));
@@ -66,12 +79,13 @@ describe("API client", () => {
         expect(fetch.mock.calls[2][1]).toEqual(expect.objectContaining({ method: "POST", body: JSON.stringify(conflictPayload) }));
     });
 
-    test("loads public profiles and sends the selected profile with calendar requests", async () => {
+    test("sends workspace and active-profile bearer tokens", async () => {
         fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: [] }) });
+        setSessionToken("workspace-token");
         await profileApi.list();
-        expect(fetch.mock.calls[0][1].headers).not.toHaveProperty("X-Calendar-Profile");
-        setActiveProfileId("profile-1");
+        expect(fetch.mock.calls[0][1].headers).toEqual(expect.objectContaining({ Authorization: "Bearer workspace-token" }));
+        setProfileToken("profile-token");
         await calendarApi.list();
-        expect(fetch.mock.calls[1][1].headers).toEqual(expect.objectContaining({ "X-Calendar-Profile": "profile-1" }));
+        expect(fetch.mock.calls[1][1].headers).toEqual(expect.objectContaining({ Authorization: "Bearer profile-token" }));
     });
 });

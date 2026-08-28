@@ -15,10 +15,12 @@ import { SuggestedTimesDrawer } from "./features/people/SuggestedTimesDrawer.jsx
 import { AvailabilityComparison } from "./features/people/AvailabilityComparison.jsx";
 import { profileApi } from "./features/profiles/profile.api.js";
 import { ProfilePicker } from "./features/profiles/ProfilePicker.jsx";
-import { setActiveProfileId } from "./shared/api/client.js";
+import { authApi } from "./features/auth/auth.api.js";
+import { WorkspaceLogin } from "./features/auth/WorkspaceLogin.jsx";
+import { hasProfileToken, hasSessionToken, setProfileToken, setSessionToken } from "./shared/api/client.js";
 import { addDays, getViewRange, startOfMonth } from "./shared/utils/date.js";
 
-export function CalendarWorkspace({ activeProfile, onSwitchProfile }) {
+export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) {
     const [cursor, setCursor] = useState(new Date());
     const [view, setViewState] = useState(() => {
         const stored = localStorage.getItem("calendar-view");
@@ -47,6 +49,7 @@ export function CalendarWorkspace({ activeProfile, onSwitchProfile }) {
     const [meetingPeople, setMeetingPeople] = useState([]);
     const [suggestionPeople, setSuggestionPeople] = useState(null);
     const [availabilityRevision, setAvailabilityRevision] = useState(0);
+    const [responsePending, setResponsePending] = useState(false);
     const visibleIds = useMemo(() => calendars.filter((calendar) => calendar.visible).map((calendar) => calendar._id), [calendars]);
     const range = useMemo(() => getViewRange(view, cursor), [view, cursor]);
     const insightRange = useMemo(() => { const start = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()); return [start, addDays(start, 1)]; }, [cursor]);
@@ -94,6 +97,22 @@ export function CalendarWorkspace({ activeProfile, onSwitchProfile }) {
     const selectEvent = (event) => { setError(""); setSelectedEvent(event); };
     const saveEvent = async (payload) => { if (editorDraft?._id) await eventApi.update(editorDraft._id, payload); else await eventApi.create(payload); setEditorDraft(null); setSelectedEvent(null); setError(""); await Promise.all([loadEvents(), loadInsights()]); setAvailabilityRevision((revision) => revision + 1); };
     const deleteEvent = async () => { try { await eventApi.remove(selectedEvent._id); setSelectedEvent(null); setError(""); await Promise.all([loadEvents(), loadInsights()]); } catch (requestError) { setError(requestError.message); } };
+    const respondToEvent = async (status, options = {}) => {
+        if (!selectedEvent || selectedEvent.responseStatus === status && !Object.keys(options).length) return false;
+        try {
+            setResponsePending(true);
+            setError("");
+            const updated = Object.keys(options).length ? await eventApi.respond(selectedEvent._id, status, options) : await eventApi.respond(selectedEvent._id, status);
+            setSelectedEvent(updated);
+            const sameOccurrence = (item) => item.occurrenceKey ? item.occurrenceKey === updated.occurrenceKey : item._id === updated._id;
+            setEvents((items) => items.map((item) => sameOccurrence(item) ? updated : item));
+            setSearchResults((items) => items.map((item) => sameOccurrence(item) ? updated : item));
+            await loadEvents();
+            setAvailabilityRevision((revision) => revision + 1);
+            return true;
+        } catch (requestError) { setError(requestError.message); return false; }
+        finally { setResponsePending(false); }
+    };
     const updateCalendar = async (id, values) => { const updated = await calendarApi.update(id, values); setCalendars((items) => items.map((item) => item._id === id ? updated : item)); setError(""); return updated; };
     const createCalendar = async (values) => { const created = await calendarApi.create(values); setCalendars((items) => [...items, created]); setError(""); return created; };
     const displayOnlyCalendar = async (id) => { const updated = await calendarApi.displayOnly(id); setCalendars(updated); setError(""); return updated; };
@@ -131,22 +150,25 @@ export function CalendarWorkspace({ activeProfile, onSwitchProfile }) {
     };
 
     return <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-        <CalendarHeader cursor={cursor} onCreate={() => createEvent()} onProfileSwitch={onSwitchProfile} onSearchClose={closeSearch} onSearchOpen={openSearch} onSidebarToggle={toggleSidebar} profile={activeProfile} searchMode={searchMode} setCursor={setCursor} setView={setView} view={view} />
+        <CalendarHeader cursor={cursor} onCreate={() => createEvent()} onLogout={onLogout} onProfileSwitch={onSwitchProfile} onSearchClose={closeSearch} onSearchOpen={openSearch} onSidebarToggle={toggleSidebar} profile={activeProfile} searchMode={searchMode} setCursor={setCursor} setView={setView} view={view} />
         <CalendarSidebar calendars={calendars} collapsed={sidebarCollapsed} cursor={cursor} insights={insights} insightsError={insightsStatus.error} insightsLoading={insightsStatus.loading} meetingPeople={meetingPeople} miniMonth={miniMonth} onCalendarCreate={createCalendar} onCalendarDelete={deleteCalendar} onCalendarDisplayOnly={displayOnlyCalendar} onCalendarUpdate={updateCalendar} onCreate={(type) => createEvent(undefined, type)} onInsightsOpen={() => setInsightsOpen(true)} onInsightsRetry={loadInsights} onMeetingPeopleChange={changeMeetingPeople} onMiniMonthChange={setMiniMonth} onOpenSuggestions={setSuggestionPeople} onSelectDate={selectMiniDate} />
         {!sidebarCollapsed && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={toggleSidebar} />}
         <main className="calendar-surface">
-            {error && <div className="service-error" role="alert"><span>{error}</span><button onClick={() => { loadCalendars(); loadEvents(); }}>Retry</button></div>}
+            {error && !selectedEvent && !editorDraft && <div className="service-error" role="alert"><span>{error}</span><button onClick={() => { loadCalendars(); loadEvents(); }}>Retry</button></div>}
             {searchCriteria !== null ? <SearchResults calendars={calendars} criteria={searchCriteria} error={searchStatus.error} loading={searchStatus.loading} onClear={() => { setSearchCriteria(null); setSearchPanelOpen(true); }} onEventSelect={selectEvent} results={searchResults} /> : renderView()}
         </main>
         {searchMode && <AdvancedSearchPanel expanded={searchPanelOpen} initialValues={searchCriteria} onDismiss={closeSearch} onExpandedChange={setSearchPanelOpen} onSearch={executeSearch} />}
         {editorDraft && <EventEditor calendars={calendars} draft={editorDraft} onClose={() => setEditorDraft(null)} onSave={saveEvent} />}
-        {selectedEvent && !editorDraft && <EventPreview calendar={calendars.find((calendar) => calendar._id === String(selectedEvent.calendarId))} error={error} event={selectedEvent} onClose={() => { setSelectedEvent(null); setError(""); }} onDelete={deleteEvent} onEdit={() => { setEditorDraft(selectedEvent); setSelectedEvent(null); setError(""); }} />}
+        {selectedEvent && !editorDraft && <EventPreview calendar={calendars.find((calendar) => calendar._id === String(selectedEvent.calendarId))} error={error} event={selectedEvent} onClose={() => { setSelectedEvent(null); setError(""); }} onDelete={deleteEvent} onEdit={() => { setEditorDraft(selectedEvent); setSelectedEvent(null); setError(""); }} onRespond={respondToEvent} responding={responsePending} />}
         {insightsOpen && <TimeInsightsDrawer cursor={cursor} insights={insights} loading={insightsStatus.loading} onClose={() => setInsightsOpen(false)} onScheduleFocus={() => { setInsightsOpen(false); createEvent(undefined, "focusTime"); }} />}
         {suggestionPeople && <SuggestedTimesDrawer cursor={cursor} people={suggestionPeople} onChoose={chooseSuggestedTime} onClose={() => setSuggestionPeople(null)} />}
     </div>;
 }
 
 export default function App() {
+    const [account, setAccount] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [authError, setAuthError] = useState("");
     const [profiles, setProfiles] = useState(null);
     const [profileError, setProfileError] = useState("");
     const [selectedProfileId, setSelectedProfileId] = useState(() => localStorage.getItem("calendar-profile-id") || "");
@@ -154,18 +176,64 @@ export default function App() {
         try { setProfileError(""); setProfiles(await profileApi.list()); }
         catch (error) { setProfileError(error.message); setProfiles([]); }
     }, []);
-    useEffect(() => { loadProfiles(); }, [loadProfiles]);
+    useEffect(() => {
+        const expire = (event) => { setProfileToken(""); setSessionToken(""); localStorage.removeItem("calendar-profile-id"); setSelectedProfileId(""); setAccount(null); setProfiles(null); setAuthError(event.detail || "Your Calendar session has expired."); };
+        window.addEventListener("calendar-session-expired", expire);
+        return () => window.removeEventListener("calendar-session-expired", expire);
+    }, []);
+    useEffect(() => {
+        let active = true;
+        const restore = async () => {
+            if (!hasSessionToken()) { if (active) setAuthLoading(false); return; }
+            try {
+                const session = await authApi.session();
+                if (active) { setAccount(session.account); setAuthError(""); }
+            } catch (error) {
+                if (hasProfileToken()) {
+                    setProfileToken("");
+                    localStorage.removeItem("calendar-profile-id");
+                    try { const session = await authApi.session(); if (active) { setAccount(session.account); setAuthError(""); } return; }
+                    catch {}
+                }
+                setSessionToken("");
+                if (active) setAuthError(error.message);
+            } finally { if (active) setAuthLoading(false); }
+        };
+        restore();
+        return () => { active = false; };
+    }, []);
+    useEffect(() => { if (account) loadProfiles(); else setProfiles(null); }, [account, loadProfiles]);
     const activeProfile = profiles?.find((profile) => String(profile._id) === selectedProfileId);
     useEffect(() => {
         if (profiles === null) return;
         if (selectedProfileId && !activeProfile) {
             localStorage.removeItem("calendar-profile-id");
+            setProfileToken("");
             setSelectedProfileId("");
         }
-        setActiveProfileId(activeProfile?._id || "");
     }, [activeProfile, profiles, selectedProfileId]);
+    const login = async (email, password) => {
+        try { setAuthLoading(true); setAuthError(""); const result = await authApi.login(email, password); setSessionToken(result.token); setAccount(result.account); }
+        catch (error) { setAuthError(error.message); }
+        finally { setAuthLoading(false); }
+    };
+    const logout = async () => {
+        try { if (hasSessionToken()) await authApi.logout(); } catch {}
+        setProfileToken(""); setSessionToken(""); localStorage.removeItem("calendar-profile-id"); setSelectedProfileId(""); setAccount(null); setProfiles(null); setAuthError("");
+    };
+    const selectProfile = async (profile) => {
+        try {
+            setProfileError("");
+            const result = await authApi.switchProfile(profile._id);
+            setProfileToken(result.token);
+            localStorage.setItem("calendar-profile-id", profile._id);
+            setSelectedProfileId(String(profile._id));
+        } catch (error) { setProfileError(error.message); }
+    };
+    if (authLoading && !account) return <WorkspaceLogin loading />;
+    if (!account) return <WorkspaceLogin error={authError} loading={authLoading} onLogin={login} />;
     if (activeProfile) {
-        return <CalendarWorkspace activeProfile={activeProfile} key={activeProfile._id} onSwitchProfile={() => { localStorage.removeItem("calendar-profile-id"); setActiveProfileId(""); setSelectedProfileId(""); }} />;
+        return <CalendarWorkspace activeProfile={activeProfile} key={activeProfile._id} onLogout={logout} onSwitchProfile={() => { localStorage.removeItem("calendar-profile-id"); setProfileToken(""); setSelectedProfileId(""); }} />;
     }
-    return <ProfilePicker error={profileError} loading={profiles === null} onRetry={loadProfiles} profiles={profiles || []} onSelect={(profile) => { localStorage.setItem("calendar-profile-id", profile._id); setActiveProfileId(profile._id); setSelectedProfileId(String(profile._id)); }} />;
+    return <ProfilePicker error={profileError} loading={profiles === null} onLogout={logout} onRetry={loadProfiles} profiles={profiles || []} onSelect={selectProfile} />;
 }

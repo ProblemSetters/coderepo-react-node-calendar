@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { Modal } from "../../shared/components/Modal.jsx";
+import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 import { calendarColors, nextAvailableCalendarColor } from "./calendar-colors.js";
 
 const commonTimeZones = ["UTC", "Asia/Kolkata", "Asia/Singapore", "Europe/London", "Europe/Paris", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"];
@@ -51,10 +52,10 @@ export function CalendarEditor({ calendar, onClose, onDelete, onSave, usedColors
                 <textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} rows={3} placeholder="What is this calendar for?" />
                 <small>{description.length}/1000</small>
             </label>
-            <label className="outlined-field">
+            <div className="outlined-field">
                 <span>Time zone</span>
-                <select value={timeZone} onChange={(event) => setTimeZone(event.target.value)}>{timeZones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}</select>
-            </label>
+                <SelectMenu ariaLabel="Time zone" value={timeZone} onChange={setTimeZone} options={timeZones.map((zone) => ({ value: zone, label: zone.replaceAll("_", " ") }))} />
+            </div>
             <fieldset className="calendar-color-picker">
                 <legend>Calendar color</legend>
                 <div>{calendarColors.map((option) => <label key={option.value} title={option.label} style={{ "--calendar-option": option.value }}>

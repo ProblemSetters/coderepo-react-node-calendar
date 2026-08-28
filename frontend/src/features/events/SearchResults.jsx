@@ -1,4 +1,5 @@
 import { formatTime } from "../../shared/utils/date.js";
+import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 
 export function SearchResults({ calendars, criteria, error, loading, onClear, onEventSelect, results }) {
     const description = [criteria.what && `“${criteria.what}”`, criteria.who && `person: ${criteria.who}`, criteria.where && `place: ${criteria.where}`, criteria.exclude && `excluding: ${criteria.exclude}`].filter(Boolean).join(" · ") || "the selected dates and calendars";
@@ -7,5 +8,8 @@ export function SearchResults({ calendars, criteria, error, loading, onClear, on
     if (!results.length) return <div className="empty-state"><h2>No results found</h2><p>No calendar items matched {description}.</p><button onClick={onClear}>Modify search</button></div>;
     const now = new Date();
     const sections = [{ title: "Upcoming", events: results.filter((event) => new Date(event.endAt) >= now) }, { title: "Past", events: results.filter((event) => new Date(event.endAt) < now).reverse() }];
-    return <div className="search-results"><div className="search-results-toolbar"><span>Results for {description}</span><button onClick={onClear}>Modify search</button></div>{sections.filter((section) => section.events.length).map((section) => <section key={section.title}><h2>{section.title}</h2>{section.events.map((event) => { const calendar = calendars.find((item) => item._id === String(event.calendarId)); return <button key={event._id} className="search-result" onClick={() => onEventSelect(event)}><time>{new Date(event.startAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}<span>{event.allDay ? "All day" : formatTime(event.startAt)}</span></time><i style={{ backgroundColor: event.color || calendar?.color }} /><span><strong>{event.title}</strong><small>{[event.location, calendar?.name].filter(Boolean).join(" · ")}</small></span></button>; })}</section>)}</div>;
+    return <div className="search-results"><div className="search-results-toolbar"><span>Results for {description}</span><button onClick={onClear}>Modify search</button></div>{sections.filter((section) => section.events.length).map((section) => <section key={section.title}><h2>{section.title}</h2>{section.events.map((event) => {
+        const calendar = calendars.find((item) => item._id === String(event.calendarId));
+        return <button key={event.occurrenceKey || event._id} className="search-result" data-item-type={event.type || "event"} data-response-status={event.responseStatus} onClick={() => onEventSelect(event)}><time>{new Date(event.startAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}<span>{event.allDay ? "All day" : formatTime(event.startAt)}</span></time>{event.type === "outOfOffice" ? <MaterialIcon className="out-of-office-icon" size={18}>event_busy</MaterialIcon> : <i style={{ backgroundColor: event.color || calendar?.color }} />}<span><strong>{event.title}</strong><small>{[event.location, calendar?.name].filter(Boolean).join(" · ")}</small></span></button>;
+    })}</section>)}</div>;
 }

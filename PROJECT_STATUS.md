@@ -1,5 +1,7 @@
 # Calendar implementation status and quality audit
 
+> Archived point-in-time audit: superseded by [RELEASE_READINESS_AUDIT.md](./RELEASE_READINESS_AUDIT.md), which contains the current **154-test** verification, implemented-feature inventory, remaining backlog, authentication/repository corrections, and QuickBites comparison. The historical body below is intentionally not the release decision.
+
 | Audit field | Result |
 | --- | --- |
 | Audit date | August 28, 2026 |
@@ -97,7 +99,7 @@ Status: **Complete for single-instance items. Appointment schedule is an item ty
 - Touching intervals are allowed; overlapping intervals are reported.
 - Working-location and other non-blocking all-day metadata are ignored, while all-day Out of office blocks availability.
 
-Status: **Complete for local-directory guests and conflict warnings. No invitation delivery or RSVP workflow exists.**
+Status: **Complete for local-directory guests, conflict warnings, and Yes/Maybe/No RSVP. Email delivery and external synchronization remain future work.**
 
 ### 6. Calendar management and colors
 
@@ -321,7 +323,6 @@ The comparison was made directly against `2429661-coderepo-react-node-quickbites
 | HackerRank test command | Calendar currently uses `echo "No test command configured"` | Configure the final scoring command(s) and task XML output |
 | XML naming | Current files are `frontend.xml` and `results.xml`, not task-level XML | Emit `output/taskN.xml`, including on failures |
 | Formatting enforcement | Prettier config exists but the dependency/check script does not | Add Prettier as a development dependency and a deterministic format-check script |
-| Repository boundary | `event.service.js` directly imports and queries the Calendar model | Move ownership/existence queries into `calendar.repository.js` or an explicit repository boundary |
 | Frontend modularity | `App.jsx` owns extensive workspace orchestration; QuickBites separates routing, contexts, services, pages, and nested feature components | Extract a calendar workspace hook/reducer/context and keep `App` as composition/entry only |
 | Test identifiers | The app relies primarily on accessible roles and has only 10 `data-testid` attributes; one documented view ID is absent | Reconcile the final task specs with stable IDs needed by HackerRank tests |
 | Authentication | QuickBites has bcrypt/JWT/authorization; Calendar has a client-selected profile header | Decide demo profiles versus real auth and implement/document accordingly |
@@ -334,8 +335,8 @@ QuickBites itself is a reference, not a file-for-file template. Calendar should 
 
 These are not partially implemented and should remain out of the UI until built end to end:
 
-1. Recurring events, recurrence exceptions, and series editing/deletion.
-2. Invitations, RSVP status, attendee responses, email delivery, and external directory sync.
+1. Per-instance recurrence editing/deletion exceptions. Core recurrence and scoped RSVP are complete.
+2. Invitation email delivery, external directory/calendar synchronization, RSVP comments, and proposed-time handling.
 3. Calendar sharing permissions, subscriptions, public calendars, and holiday feeds.
 4. Google Meet or other video-conference integration.
 5. Reminders, notifications, attachments, task completion, and offline synchronization.
@@ -356,7 +357,7 @@ These are not partially implemented and should remain out of the UI until built 
 3. Finish comparison working-hours visualization and out-of-hours behavior.
 4. Add the missing regression tests listed above.
 5. Synchronize PRD, technical specs, API/data contracts, and test IDs.
-6. Refactor direct database access and frontend orchestration to the intended feature boundaries.
+6. Refactor frontend orchestration into a dedicated workspace hook/reducer if the feature surface continues to grow.
 7. Create the final `solution-prod`/`base-prod` repository flow and task-scoped tests/XML.
 8. Add Prettier enforcement and run a clean Bun install/start/test/build.
 9. Validate both branches on HackerRank and confirm the downloadable archive is below 5 MB.

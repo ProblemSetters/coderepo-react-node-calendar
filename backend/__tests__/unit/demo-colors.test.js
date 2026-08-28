@@ -5,7 +5,7 @@ describe("demo identity colors", () => {
         const assignments = Object.values(demoProfileColors);
         expect(new Set(assignments.map((assignment) => assignment.profile)).size).toBe(assignments.length);
         assignments.forEach((assignment) => expect(assignment.work).not.toBe(assignment.profile));
-        expect(demoProfileColors["mahadevan@example.com"].Birthdays).not.toBe(demoProfileColors["mahadevan@example.com"].profile);
-        expect(demoProfileColors["mahadevan@example.com"].Birthdays).not.toBe(demoProfileColors["mahadevan@example.com"].work);
+        expect(demoProfileColors["river@hackerrank.com"].Birthdays).not.toBe(demoProfileColors["river@hackerrank.com"].profile);
+        expect(demoProfileColors["river@hackerrank.com"].Birthdays).not.toBe(demoProfileColors["river@hackerrank.com"].work);
     });
 });

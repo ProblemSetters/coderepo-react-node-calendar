@@ -21,7 +21,7 @@ export function dayOfWeek(dateKey) {
     return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
-function partsAt(value, timeZone) {
+export function partsAt(value, timeZone) {
     const parts = new Intl.DateTimeFormat("en-CA", {
         timeZone,
         year: "numeric",
@@ -33,6 +33,30 @@ function partsAt(value, timeZone) {
         hourCycle: "h23",
     }).formatToParts(value);
     return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+}
+
+export function localDateKey(value, timeZone) {
+    const { year, month, day } = partsAt(value, timeZone);
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function workingHoursStatus(startAt, endAt, workingHours, timeZone) {
+    const start = partsAt(startAt, timeZone);
+    const end = partsAt(endAt, timeZone);
+    const startDate = `${start.year}-${String(start.month).padStart(2, "0")}-${String(start.day).padStart(2, "0")}`;
+    const endDate = `${end.year}-${String(end.month).padStart(2, "0")}-${String(end.day).padStart(2, "0")}`;
+    const startMinute = start.hour * 60 + start.minute;
+    const endMinute = end.hour * 60 + end.minute;
+    const weekday = dayOfWeek(startDate);
+    const sameDay = startDate === endDate;
+    const workingDay = ![0, 6].includes(weekday);
+    return {
+        withinWorkingHours: sameDay && workingDay && startMinute >= workingHours.startMinute && endMinute <= workingHours.endMinute,
+        localDate: startDate,
+        localStartMinute: startMinute,
+        localEndMinute: endMinute,
+        workingDay,
+    };
 }
 
 export function zonedDateTime(dateKey, minuteOfDay, timeZone) {

@@ -1,10 +1,14 @@
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { createApp } from "../../src/app.js";
+import { WorkspaceAccount } from "../../src/features/auth/workspace-account.model.js";
 import { Calendar } from "../../src/features/calendars/calendar.model.js";
 import { Event } from "../../src/features/events/event.model.js";
 import { Person } from "../../src/features/people/person.model.js";
+import { config } from "../../src/shared/config/index.js";
 
 let database;
 let primary;
@@ -26,7 +30,7 @@ beforeAll(async () => {
 }, 120000);
 
 beforeEach(async () => {
-    await Promise.all([Calendar.deleteMany({}), Event.deleteMany({}), Person.deleteMany({})]);
+    await Promise.all([Calendar.deleteMany({}), Event.deleteMany({}), Person.deleteMany({}), WorkspaceAccount.deleteMany({})]);
     [primary, work] = await Calendar.create([
         { name: "My calendar", color: "#1a73e8", visible: true, isPrimary: true },
         { name: "Work", color: "#0f9d58", visible: true },
@@ -34,8 +38,8 @@ beforeEach(async () => {
 });
 
 const personPayload = (overrides = {}) => ({
-    name: "Diya Shah",
-    email: "diya.shah@example.com",
+    name: "Sage",
+    email: "sage@hackerrank.com",
     avatarColor: "#d93025",
     workingHours: { startMinute: 540, endMinute: 1020 },
     busyBlocks: [],
@@ -61,31 +65,65 @@ describe("health", () => {
     });
 });
 
+describe("workspace authentication", () => {
+    test("authenticates once, scopes profile switching, and rejects invalid sessions", async () => {
+        const [river, outsider] = await Person.create([
+            personPayload({ name: "River", email: "river@hackerrank.com", isProfile: true }),
+            personPayload({ name: "Outside", email: "outside@hackerrank.com", isProfile: true }),
+        ]);
+        const account = await WorkspaceAccount.create({ name: "Calendar assessment", email: "calendar@hackerrank.com", passwordHash: await bcrypt.hash("password123", 4), allowedProfileIds: [river._id] });
+
+        expect((await request(app).get("/api/v1/auth/session")).body.error.code).toBe("AUTH_REQUIRED");
+        expect((await request(app).post("/api/v1/auth/login").send({ email: "calendar@hackerrank.com", password: "wrong" })).body.error.code).toBe("INVALID_CREDENTIALS");
+        const login = await request(app).post("/api/v1/auth/login").send({ email: "CALENDAR@HACKERRANK.COM", password: "password123" });
+        expect(login.status).toBe(200);
+        expect(login.body.data.account).toEqual(expect.objectContaining({ name: "Calendar assessment", email: "calendar@hackerrank.com" }));
+        expect(JSON.stringify(login.body)).not.toContain("passwordHash");
+        const workspaceToken = login.body.data.token;
+        const auth = { Authorization: `Bearer ${workspaceToken}` };
+        expect((await request(app).get("/api/v1/auth/session").set(auth)).body.data.account.email).toBe("calendar@hackerrank.com");
+        expect((await request(app).get("/api/v1/profiles").set(auth)).body.data.map((profile) => profile.name)).toEqual(["River"]);
+        expect((await request(app).get("/api/v1/calendars").set(auth)).body.error.code).toBe("PROFILE_REQUIRED");
+        expect((await request(app).post("/api/v1/auth/switch-profile").set(auth).send({ profileId: String(outsider._id) })).body.error.code).toBe("PROFILE_FORBIDDEN");
+        expect((await request(app).post("/api/v1/auth/switch-profile").set(auth).send({ profileId: "bad-id" })).status).toBe(400);
+
+        const switched = await request(app).post("/api/v1/auth/switch-profile").set(auth).send({ profileId: String(river._id) });
+        expect(switched.body.data.profile.name).toBe("River");
+        expect((await request(app).get("/api/v1/calendars").set("Authorization", `Bearer ${switched.body.data.token}`)).status).toBe(200);
+        expect((await request(app).get("/api/v1/auth/session").set("Authorization", `Bearer ${workspaceToken}tampered`)).body.error.code).toBe("INVALID_TOKEN");
+        const expired = jwt.sign({ sub: String(account._id), type: "workspace" }, config.jwtSecret, { expiresIn: -1, issuer: "calendar-api", audience: "calendar-assessment" });
+        expect((await request(app).get("/api/v1/auth/session").set("Authorization", `Bearer ${expired}`)).body.error.code).toBe("INVALID_TOKEN");
+        await WorkspaceAccount.deleteOne({ _id: account._id });
+        expect((await request(app).get("/api/v1/auth/session").set(auth)).body.error.code).toBe("ACCOUNT_UNAVAILABLE");
+    });
+});
+
 describe("demo profiles", () => {
     test("lists selectable profiles and isolates calendars while sharing invitations", async () => {
-        const [mahadevan, diya] = await Person.create([
-            personPayload({ name: "Mahadevan M", email: "mahadevan@example.com", avatarColor: "#039be5", isProfile: true, headline: "Product & engineering", sortOrder: 1 }),
-            personPayload({ isProfile: true, headline: "Product design", sortOrder: 2 }),
+        const [user01, user03] = await Person.create([
+            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true, sortOrder: 1 }),
+            personPayload({ isProfile: true, sortOrder: 2 }),
         ]);
-        const [mahadevanCalendar, diyaCalendar] = await Calendar.create([
-            { ownerId: mahadevan._id, name: "My calendar", color: "#039be5", visible: true, isPrimary: true },
-            { ownerId: diya._id, name: "My calendar", color: "#d93025", visible: true, isPrimary: true },
+        const [user01Calendar, user03Calendar] = await Calendar.create([
+            { ownerId: user01._id, name: "My calendar", color: "#039be5", visible: true, isPrimary: true },
+            { ownerId: user03._id, name: "My calendar", color: "#d93025", visible: true, isPrimary: true },
         ]);
-        const meeting = await Event.create({ ...eventPayload(), calendarId: mahadevanCalendar._id, participants: [diya.name], participantIds: [diya._id] });
+        const meeting = await Event.create({ ...eventPayload(), calendarId: user01Calendar._id, participants: [user03.name], participantIds: [user03._id] });
 
         const profiles = await request(app).get("/api/v1/profiles");
-        expect(profiles.body.data.map((profile) => profile.name)).toEqual(["Mahadevan M", "Diya Shah"]);
+        expect(profiles.body.data.map((profile) => profile.name)).toEqual(["River", "Sage"]);
         expect(profiles.body.data[0].busyBlocks).toBeUndefined();
 
-        const diyaCalendars = await request(app).get("/api/v1/calendars").set("X-Calendar-Profile", String(diya._id));
-        expect(diyaCalendars.body.data.map((calendar) => String(calendar._id))).toEqual([String(diyaCalendar._id)]);
-        const diyaEvents = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${diyaCalendar._id}`).set("X-Calendar-Profile", String(diya._id));
-        expect(diyaEvents.body.data).toEqual([expect.objectContaining({ _id: String(meeting._id), editable: false })]);
-        const forbiddenUpdate = await request(app).patch(`/api/v1/events/${meeting._id}`).set("X-Calendar-Profile", String(diya._id)).send({ title: "Changed by guest" });
+        const user03Calendars = await request(app).get("/api/v1/calendars").set("X-Calendar-Profile", String(user03._id));
+        expect(user03Calendars.body.data.map((calendar) => String(calendar._id))).toEqual([String(user03Calendar._id)]);
+        const user03Events = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${user03Calendar._id}`).set("X-Calendar-Profile", String(user03._id));
+        expect(user03Events.body.data).toEqual([expect.objectContaining({ _id: String(meeting._id), editable: false })]);
+        const forbiddenUpdate = await request(app).patch(`/api/v1/events/${meeting._id}`).set("X-Calendar-Profile", String(user03._id)).send({ title: "Changed by guest" });
         expect(forbiddenUpdate.status).toBe(404);
 
-        const ownerEvents = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${mahadevanCalendar._id}`).set("X-Calendar-Profile", String(mahadevan._id));
-        expect(ownerEvents.body.data[0].editable).toBe(true);
+        const ownerEvents = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${user01Calendar._id}`).set("X-Calendar-Profile", String(user01._id));
+        expect(ownerEvents.status).toBe(200);
+        expect(ownerEvents.body.data).toEqual([expect.objectContaining({ _id: String(meeting._id), editable: true })]);
         expect((await request(app).get("/api/v1/calendars").set("X-Calendar-Profile", "not-a-profile")).body.error.code).toBe("INVALID_PROFILE");
     });
 });
@@ -219,11 +257,11 @@ describe("events", () => {
 
     test("combines advanced search filters safely", async () => {
         await Event.create([
-            { ...eventPayload(), organizer: "Mahadevan", participants: ["Alice Johnson"] },
-            { ...eventPayload(), title: "Cancelled review", description: "cancelled", location: "Room Cedar", participants: ["Alice Johnson"] },
-            { ...eventPayload(), title: "Remote review", location: "Online", participants: ["Bob"] },
+            { ...eventPayload(), organizer: "River", participants: ["Sky"] },
+            { ...eventPayload(), title: "Cancelled review", description: "cancelled", location: "Room Cedar", participants: ["Sky"] },
+            { ...eventPayload(), title: "Remote review", location: "Online", participants: ["Sage"] },
         ]);
-        const response = await request(app).get(`/api/v1/events/search?what=release&who=Alice&where=Cedar&exclude=cancelled&from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const response = await request(app).get(`/api/v1/events/search?what=release&who=Sky&where=Cedar&exclude=cancelled&from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(response.status).toBe(200);
         expect(response.body.data.map((event) => event.title)).toEqual(["Design review"]);
     });
@@ -279,6 +317,114 @@ describe("events", () => {
         expect(date.body.data.map((event) => event.title)).toEqual(["Next day"]);
         const invalid = await request(app).get(`/api/v1/events/search?from=2026-08-29&to=2026-08-28&calendarIds=${primary._id}`);
         expect(invalid.status).toBe(400);
+    });
+
+    test("lets invited profiles answer Yes, Maybe, or No while organizers see an accurate summary", async () => {
+        const [owner, user02, user03] = await Person.create([
+            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+            personPayload({ isProfile: true }),
+        ]);
+        const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
+        const created = await request(app).post("/api/v1/events").set("X-Calendar-Profile", String(owner._id)).send({
+            ...eventPayload(),
+            calendarId: String(ownerCalendar._id),
+            participantIds: [String(user02._id), String(user03._id)],
+            participants: [user02.name, user03.name],
+        });
+        expect(created.status).toBe(201);
+        expect(created.body.data.responseSummary).toEqual({ needsAction: 2, accepted: 0, declined: 0, tentative: 0 });
+        expect(created.body.data.participantPeople.map((person) => person.responseStatus)).toEqual(["needsAction", "needsAction"]);
+
+        const accepted = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("X-Calendar-Profile", String(user02._id)).send({ status: "accepted" });
+        expect(accepted.status).toBe(200);
+        expect(accepted.body.data).toEqual(expect.objectContaining({ editable: false, responseStatus: "accepted", respondedAt: expect.any(String) }));
+        expect(accepted.body.data.responseSummary).toEqual({ needsAction: 1, accepted: 1, declined: 0, tentative: 0 });
+
+        const tentative = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("X-Calendar-Profile", String(user02._id)).send({ status: "tentative" });
+        expect(tentative.body.data.responseStatus).toBe("tentative");
+        const declined = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("X-Calendar-Profile", String(user03._id)).send({ status: "declined" });
+        expect(declined.body.data.responseStatus).toBe("declined");
+
+        const organizerView = await request(app).get(`/api/v1/events/${created.body.data._id}`).set("X-Calendar-Profile", String(owner._id));
+        expect(organizerView.body.data.responseStatus).toBeUndefined();
+        expect(organizerView.body.data.responseSummary).toEqual({ needsAction: 0, accepted: 0, declined: 1, tentative: 1 });
+        expect(organizerView.body.data.participantPeople).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: "Sky", responseStatus: "tentative" }),
+            expect.objectContaining({ name: "Sage", responseStatus: "declined" }),
+        ]));
+    });
+
+    test("expands recurring events and applies attendee responses to this, following, or all occurrences", async () => {
+        const [owner, attendee] = await Person.create([
+            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+        ]);
+        const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
+        const created = await request(app).post("/api/v1/events").set("X-Calendar-Profile", String(owner._id)).send({
+            ...eventPayload(), calendarId: String(ownerCalendar._id), participantIds: [String(attendee._id)], participants: [attendee.name],
+            recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], monthlyMode: "ordinalWeekday", endType: "count", count: 3, until: null, timeZone: "UTC" },
+        });
+        expect(created.status).toBe(201);
+        const endpoint = `/api/v1/events/${created.body.data._id}/response`;
+        const list = () => request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-30T00:00:00.000Z&calendarIds=${ownerCalendar._id}`).set("X-Calendar-Profile", String(attendee._id));
+        let occurrences = (await list()).body.data;
+        expect(occurrences).toHaveLength(3);
+        expect(occurrences.every((item) => item.recurring && item.responseStatus === "needsAction")).toBe(true);
+
+        await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "declined", scope: "this", occurrenceStartAt: occurrences[0].occurrenceStartAt });
+        occurrences = (await list()).body.data;
+        expect(occurrences.map((item) => item.responseStatus)).toEqual(["declined", "needsAction", "needsAction"]);
+
+        await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "tentative", scope: "following", occurrenceStartAt: occurrences[1].occurrenceStartAt });
+        occurrences = (await list()).body.data;
+        expect(occurrences.map((item) => item.responseStatus)).toEqual(["declined", "tentative", "tentative"]);
+
+        await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted", scope: "all" });
+        expect((await list()).body.data.map((item) => item.responseStatus)).toEqual(["accepted", "accepted", "accepted"]);
+
+        const invalid = await request(app).post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "weekly", interval: 1, daysOfWeek: [], endType: "never", timeZone: "UTC" } });
+        expect(invalid.status).toBe(400);
+        expect((await request(app).post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], endType: "never", timeZone: "Mars/Olympus" } })).status).toBe(400);
+        expect((await request(app).post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], endType: "until", until: "2026-08-01T00:00:00.000Z", timeZone: "UTC" } })).body.error.code).toBe("INVALID_RECURRENCE_END");
+        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted", scope: "this", occurrenceStartAt: "2026-08-27T09:01:00.000Z" })).body.error.code).toBe("INVALID_OCCURRENCE");
+    });
+
+    test("preserves retained responses, adds new guests as pending, and resets answers after schedule changes", async () => {
+        const [owner, user02, user03] = await Person.create([
+            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+            personPayload({ isProfile: true }),
+        ]);
+        const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
+        const event = await Event.create({ ...eventPayload(), calendarId: ownerCalendar._id, participantIds: [user02._id], participants: [user02.name], attendeeResponses: [{ personId: user02._id, status: "accepted", respondedAt: new Date() }] });
+
+        const guestsChanged = await request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send({ participantIds: [String(user02._id), String(user03._id)], participants: [user02.name, user03.name] });
+        expect(guestsChanged.body.data.participantPeople).toEqual([
+            expect.objectContaining({ name: "Sky", responseStatus: "accepted" }),
+            expect.objectContaining({ name: "Sage", responseStatus: "needsAction" }),
+        ]);
+
+        const rescheduled = await request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send({ startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" });
+        expect(rescheduled.body.data.responseSummary).toEqual({ needsAction: 2, accepted: 0, declined: 0, tentative: 0 });
+        expect(rescheduled.body.data.attendeeResponses.every((response) => response.respondedAt === null)).toBe(true);
+    });
+
+    test("rejects invalid, unauthenticated, organizer, non-attendee, and stale invitation responses", async () => {
+        const [owner, attendee, outsider] = await Person.create([
+            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+            personPayload({ isProfile: true }),
+        ]);
+        const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
+        const event = await Event.create({ ...eventPayload(), calendarId: ownerCalendar._id, participantIds: [attendee._id], participants: [attendee.name] });
+        const endpoint = `/api/v1/events/${event._id}/response`;
+        expect((await request(app).patch(endpoint).send({ status: "accepted" })).body.error.code).toBe("PROFILE_REQUIRED");
+        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(owner._id)).send({ status: "accepted" })).body.error.code).toBe("NOT_EVENT_ATTENDEE");
+        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(outsider._id)).send({ status: "declined" })).status).toBe(403);
+        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "later" })).status).toBe(400);
+        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted", extra: true })).status).toBe(400);
+        expect((await request(app).patch(`/api/v1/events/not-an-id/response`).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted" })).body.error.code).toBe("EVENT_NOT_FOUND");
     });
 });
 
@@ -337,35 +483,35 @@ describe("people and availability", () => {
     test("searches the directory by name and email without treating regex characters as patterns", async () => {
         await Person.create([
             personPayload(),
-            personPayload({ name: "Aarav Mehta", email: "aarav+calendar@example.com", avatarColor: "#1a73e8" }),
+            personPayload({ name: "Sky", email: "sky+calendar@hackerrank.com", avatarColor: "#1a73e8" }),
         ]);
-        const name = await request(app).get("/api/v1/people?q=diya");
+        const name = await request(app).get("/api/v1/people?q=Sage");
         expect(name.status).toBe(200);
-        expect(name.body.data.map((person) => person.name)).toEqual(["Diya Shah"]);
+        expect(name.body.data.map((person) => person.name)).toEqual(["Sage"]);
         expect(name.body.data[0].busyBlocks).toBeUndefined();
         const literal = await request(app).get("/api/v1/people?q=%2Bcalendar");
-        expect(literal.body.data.map((person) => person.name)).toEqual(["Aarav Mehta"]);
+        expect(literal.body.data.map((person) => person.name)).toEqual(["Sky"]);
     });
 
     test("returns a bounded sorted directory and validates query limits", async () => {
         await Person.create([
-            personPayload({ name: "Zoya", email: "zoya@example.com" }),
-            personPayload({ name: "Aarav", email: "aarav@example.com", avatarColor: "#1a73e8" }),
+            personPayload({ name: "Nova", email: "nova@hackerrank.com" }),
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8" }),
         ]);
         const response = await request(app).get("/api/v1/people?limit=1");
         expect(response.status).toBe(200);
-        expect(response.body.data.map((person) => person.name)).toEqual(["Aarav"]);
+        expect(response.body.data.map((person) => person.name)).toEqual(["Nova"]);
         expect((await request(app).get("/api/v1/people?limit=0")).status).toBe(400);
     });
 
     test("suggests only conflict-free shared-working-hour slots", async () => {
-        const [diya, aarav] = await Person.create([
+        const [user03, user02] = await Person.create([
             personPayload({ busyBlocks: [{ title: "Review", startAt: "2099-08-27T10:00:00.000Z", endAt: "2099-08-27T11:00:00.000Z" }] }),
-            personPayload({ name: "Aarav Mehta", email: "aarav@example.com", avatarColor: "#1a73e8", workingHours: { startMinute: 600, endMinute: 960 }, busyBlocks: [{ title: "Stand-up", startAt: "2099-08-27T11:00:00.000Z", endAt: "2099-08-27T11:30:00.000Z" }] }),
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", workingHours: { startMinute: 600, endMinute: 960 }, busyBlocks: [{ title: "Stand-up", startAt: "2099-08-27T11:00:00.000Z", endAt: "2099-08-27T11:30:00.000Z" }] }),
         ]);
         await Event.create({ ...eventPayload(), title: "Owner conflict", startAt: "2099-08-27T12:00:00.000Z", endAt: "2099-08-27T13:00:00.000Z" });
         const response = await request(app).post("/api/v1/availability/suggestions").send({
-            participantIds: [String(diya._id), String(aarav._id)],
+            participantIds: [String(user03._id), String(user02._id)],
             from: "2099-08-27",
             timeZone: "UTC",
             days: 1,
@@ -384,6 +530,26 @@ describe("people and availability", () => {
             expect(start).not.toBe(12);
             expect(suggestion.attendeeCount).toBe(3);
         }
+    });
+
+    test("uses each participant's local hours across DST and returns comparison windows", async () => {
+        const person = await Person.create(personPayload({
+            timeZone: "America/New_York",
+            workingHours: { startMinute: 540, endMinute: 1020 },
+        }));
+        const response = await request(app).post("/api/v1/availability/suggestions").send({
+            participantIds: [String(person._id)],
+            from: "2099-03-09",
+            timeZone: "America/New_York",
+            days: 1,
+            durationMinutes: 60,
+        });
+        expect(response.status).toBe(200);
+        expect(response.body.data.participants[0]).toEqual(expect.objectContaining({
+            person: expect.objectContaining({ timeZone: "America/New_York", workingHours: { startMinute: 540, endMinute: 1020 } }),
+            workingIntervals: [{ startAt: "2099-03-09T13:00:00.000Z", endAt: "2099-03-09T21:00:00.000Z" }],
+        }));
+        expect(response.body.data.suggestions[0].startAt).toBe("2099-03-09T13:00:00.000Z");
     });
 
     test("validates suggestion participants, duration, range, duplicates, and missing people", async () => {
@@ -410,21 +576,44 @@ describe("people and availability", () => {
     });
 
     test("reports only guests whose busy blocks overlap the proposed event", async () => {
-        const [diya, aarav] = await Person.create([
+        const [user03, user02] = await Person.create([
             personPayload({ busyBlocks: [{ title: "Design review", startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" }] }),
-            personPayload({ name: "Aarav Mehta", email: "aarav@example.com", avatarColor: "#1a73e8", busyBlocks: [{ title: "Later meeting", startAt: "2026-08-27T12:00:00.000Z", endAt: "2026-08-27T13:00:00.000Z" }] }),
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", busyBlocks: [{ title: "Later meeting", startAt: "2026-08-27T12:00:00.000Z", endAt: "2026-08-27T13:00:00.000Z" }] }),
         ]);
         const response = await request(app).post("/api/v1/availability/conflicts").send({
-            participantIds: [String(diya._id), String(aarav._id)],
+            participantIds: [String(user03._id), String(user02._id)],
             startAt: "2026-08-27T10:30:00.000Z",
             endAt: "2026-08-27T11:30:00.000Z",
         });
         expect(response.status).toBe(200);
         expect(response.body.data.available).toBe(false);
         expect(response.body.data.conflicts).toEqual([expect.objectContaining({
-            person: expect.objectContaining({ name: "Diya Shah" }),
+            person: expect.objectContaining({ name: "Sage" }),
             busy: [expect.objectContaining({ title: "Design review", startAt: "2026-08-27T10:30:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })],
         })]);
+    });
+
+    test("reports free-but-outside-hours guests separately in their own time zones", async () => {
+        const person = await Person.create(personPayload({ timeZone: "America/New_York", workingHours: { startMinute: 540, endMinute: 1020 } }));
+        const outside = await request(app).post("/api/v1/availability/conflicts").send({
+            participantIds: [String(person._id)],
+            startAt: "2026-08-27T12:30:00.000Z",
+            endAt: "2026-08-27T13:30:00.000Z",
+            timeZone: "Asia/Kolkata",
+        });
+        expect(outside.body.data).toEqual(expect.objectContaining({ available: true, conflicts: [], withinWorkingHours: false }));
+        expect(outside.body.data.workingHoursWarnings).toEqual([expect.objectContaining({
+            person: expect.objectContaining({ name: "Sage", timeZone: "America/New_York" }),
+            localStartMinute: 510,
+            workingDay: true,
+        })]);
+        const inside = await request(app).post("/api/v1/availability/conflicts").send({
+            participantIds: [String(person._id)],
+            startAt: "2026-08-27T13:00:00.000Z",
+            endAt: "2026-08-27T14:00:00.000Z",
+            timeZone: "Asia/Kolkata",
+        });
+        expect(inside.body.data).toEqual(expect.objectContaining({ available: true, withinWorkingHours: true, workingHoursWarnings: [] }));
     });
 
     test("treats meetings created in Calendar as future guest conflicts", async () => {
@@ -447,22 +636,41 @@ describe("people and availability", () => {
         expect(unknown.body.error.code).toBe("PEOPLE_NOT_FOUND");
     });
 
+    test("removes declined invitations from only that attendee's busy schedule", async () => {
+        const [user02, user03] = await Person.create([
+            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2" }),
+            personPayload(),
+        ]);
+        await Event.create({
+            ...eventPayload(),
+            title: "Shared planning",
+            participantIds: [user02._id, user03._id],
+            participants: [user02.name, user03.name],
+            attendeeResponses: [
+                { personId: user02._id, status: "declined", respondedAt: new Date() },
+                { personId: user03._id, status: "accepted", respondedAt: new Date() },
+            ],
+        });
+        const response = await request(app).post("/api/v1/availability/conflicts").send({ participantIds: [String(user02._id), String(user03._id)], startAt: "2026-08-27T09:15:00.000Z", endAt: "2026-08-27T09:45:00.000Z" });
+        expect(response.body.data.conflicts.map((conflict) => conflict.person.name)).toEqual(["Sage"]);
+    });
+
     test("keeps directory identities aligned with legacy name-only guests", async () => {
-        const person = await Person.create(personPayload({ name: "Bob Singh", email: "bob@example.com" }));
+        const person = await Person.create(personPayload({ name: "Sage", email: "sage@hackerrank.com" }));
         const created = await request(app).post("/api/v1/events").send({
             ...eventPayload(),
-            participants: ["Alice Legacy", "Bob Singh"],
+            participants: ["Saved User", "Sage"],
             participantIds: [String(person._id)],
         });
         expect(created.status).toBe(201);
-        expect(created.body.data.participants).toEqual(["Bob Singh", "Alice Legacy"]);
+        expect(created.body.data.participants).toEqual(["Sage", "Saved User"]);
         expect(created.body.data.participantPeople).toEqual([
-            expect.objectContaining({ _id: String(person._id), name: "Bob Singh", email: "bob@example.com" }),
-            expect.objectContaining({ name: "Alice Legacy", email: "" }),
+            expect.objectContaining({ _id: String(person._id), name: "Sage", email: "sage@hackerrank.com" }),
+            expect.objectContaining({ name: "Saved User", email: "" }),
         ]);
         const reopened = await request(app).get(`/api/v1/events/${created.body.data._id}`);
-        expect(reopened.body.data.participantPeople[0]).toEqual(expect.objectContaining({ _id: String(person._id), name: "Bob Singh" }));
-        expect(reopened.body.data.participantPeople[1].name).toBe("Alice Legacy");
+        expect(reopened.body.data.participantPeople[0]).toEqual(expect.objectContaining({ _id: String(person._id), name: "Sage" }));
+        expect(reopened.body.data.participantPeople[1].name).toBe("Saved User");
     });
 
     test("treats touching intervals as available and validates conflict requests", async () => {
@@ -472,6 +680,7 @@ describe("people and availability", () => {
         expect(available.body.data).toEqual(expect.objectContaining({ available: true, conflicts: [] }));
         expect((await request(app).post(endpoint).send({ participantIds: [], startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })).status).toBe(400);
         expect((await request(app).post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T10:00:00.000Z" })).status).toBe(400);
+        expect((await request(app).post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T11:30:00.000Z", timeZone: "Mars/Olympus" })).status).toBe(400);
         expect((await request(app).post(endpoint).send({ participantIds: ["bad-id"], startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })).body.error.code).toBe("INVALID_PERSON_ID");
     });
 

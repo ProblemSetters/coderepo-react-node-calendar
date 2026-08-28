@@ -10,13 +10,15 @@
         "dev": "bun --watch src/index.js",
         "seed": "bun src/scripts/seed.js",
         "colors:migrate": "node src/scripts/update-demo-colors.js",
-        "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-        "test:coverage": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --coverage --runInBand"
+        "test": "cross-env NODE_ENV=test CALENDAR_TEST_AUTH_BYPASS=true NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+        "test:coverage": "cross-env NODE_ENV=test CALENDAR_TEST_AUTH_BYPASS=true NODE_OPTIONS=--experimental-vm-modules jest --coverage --runInBand"
     },
     "dependencies": {
+        "bcryptjs": "3.0.2",
         "cors": "2.8.6",
         "dotenv": "17.3.1",
         "express": "5.2.1",
+        "jsonwebtoken": "9.0.2",
         "mongoose": "8.23.0",
         "zod": "4.3.6"
     },

@@ -10,7 +10,7 @@
 6. Suggested times opens a right-side modal drawer with the current calendar date and a 30-minute default duration.
 7. The drawer requests `POST /api/v1/availability/suggestions` whenever its date, duration, or selected people change.
 8. Selecting a free slot opens the standard Event editor with participant names and the returned UTC interval prefilled.
-9. The user reviews and explicitly saves through the existing event endpoint. No invitations or external messages are sent. After save, the open comparison refreshes and shows the new owner busy block.
+9. The user reviews and explicitly saves through the existing event endpoint. Selected local-directory guests receive an in-app pending invitation and can answer through the RSVP endpoint; no email or external message is sent. After save, the open comparison refreshes and shows the new owner busy block.
 
 ## Directory API
 

@@ -13,5 +13,5 @@ export const personRepository = {
     },
     findByIds: (ids) => Person.find({ _id: { $in: ids } }).lean(),
     findProfileById: (id) => Person.findOne({ _id: id, isProfile: true }, { busyBlocks: 0 }).lean(),
-    listProfiles: () => Person.find({ isProfile: true }, { busyBlocks: 0 }).sort({ sortOrder: 1, name: 1 }).lean(),
+    listProfiles: (ids) => Person.find({ isProfile: true, ...(ids ? { _id: { $in: ids } } : {}) }, { busyBlocks: 0 }).sort({ sortOrder: 1, name: 1 }).lean(),
 };

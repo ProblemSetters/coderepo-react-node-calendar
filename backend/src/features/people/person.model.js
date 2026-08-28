@@ -13,6 +13,7 @@ const personSchema = new mongoose.Schema({
     isProfile: { type: Boolean, default: false, index: true },
     headline: { type: String, default: "", trim: true, maxlength: 120 },
     sortOrder: { type: Number, default: 0 },
+    timeZone: { type: String, default: "UTC", trim: true, maxlength: 100 },
     workingHours: {
         startMinute: { type: Number, min: 0, max: 1439, default: 540 },
         endMinute: { type: Number, min: 1, max: 1440, default: 1020 },

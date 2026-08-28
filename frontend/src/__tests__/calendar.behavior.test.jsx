@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { CalendarHeader } from "../features/calendar/CalendarHeader.jsx";
@@ -8,7 +8,7 @@ import { MiniCalendar } from "../features/calendar/MiniCalendar.jsx";
 import { MonthView } from "../features/calendar/MonthView.jsx";
 import { TimeGrid } from "../features/calendar/TimeGrid.jsx";
 import { getLayeredEventGeometry, layoutTimedEvents } from "../features/calendar/event-layout.js";
-import { calendarColors, foregroundForColor, nextAvailableCalendarColor } from "../features/calendar/calendar-colors.js";
+import { calendarColors, foregroundForColor, nextAvailableCalendarColor, overlapColor } from "../features/calendar/calendar-colors.js";
 import { EventEditor } from "../features/events/EventEditor.jsx";
 import { EventPreview } from "../features/events/EventPreview.jsx";
 import { AdvancedSearchPanel } from "../features/events/AdvancedSearchPanel.jsx";
@@ -81,15 +81,16 @@ describe("event behavior", () => {
     test("submits every advanced search filter", async () => {
         const onSearch = vi.fn();
         render(<AdvancedSearchPanel expanded onDismiss={vi.fn()} onExpandedChange={vi.fn()} onSearch={onSearch} />);
-        await userEvent.selectOptions(screen.getByTestId("search-scope"), "all");
+        await userEvent.click(screen.getByRole("combobox", { name: "Search in" }));
+        await userEvent.click(screen.getByRole("option", { name: "All calendars" }));
         await userEvent.type(screen.getByPlaceholderText("Keywords contained in event"), "planning");
-        await userEvent.type(screen.getByPlaceholderText("Enter a participant, organizer, or creator"), "Alice");
+        await userEvent.type(screen.getByPlaceholderText("Enter a participant, organizer, or creator"), "Sky");
         await userEvent.type(screen.getByPlaceholderText("Enter a location or room"), "Cedar");
         await userEvent.type(screen.getByPlaceholderText("Keywords not contained in event"), "cancelled");
         fireEvent.change(screen.getByLabelText("From date"), { target: { value: "2026-08-01" } });
         fireEvent.change(screen.getByLabelText("To date"), { target: { value: "2026-08-31" } });
         await userEvent.click(screen.getByRole("button", { name: "Search" }));
-        expect(onSearch).toHaveBeenCalledWith(expect.objectContaining({ scope: "all", what: "planning", who: "Alice", where: "Cedar", exclude: "cancelled", from: "2026-08-01", to: "2026-08-31" }));
+        expect(onSearch).toHaveBeenCalledWith(expect.objectContaining({ scope: "all", what: "planning", who: "Sky", where: "Cedar", exclude: "cancelled", from: "2026-08-01", to: "2026-08-31" }));
     });
 
     test("reveals advanced filters only from the search dropdown", async () => {
@@ -137,6 +138,30 @@ describe("event behavior", () => {
         expect(layout.every((item) => item.columns === 2)).toBe(true);
         expect(getLayeredEventGeometry(0, 2)).toMatchObject({ left: 0, width: 82 });
         expect(getLayeredEventGeometry(1, 2)).toMatchObject({ left: 48, width: 52 });
+        expect(overlapColor("#1a73e8", 0, 2)).toBe("#1a73e8");
+        expect(overlapColor("#1a73e8", 1, 2)).toBe("#1869d3");
+    });
+
+    test("keeps adjacent and overlapping event cards visually distinct with visible task text", () => {
+        const testCalendars = [{ _id: "calendar-1", name: "My calendar", color: "#1a73e8" }];
+        const baseEvent = { calendarId: "calendar-1", type: "event", allDay: false };
+        const adjacentAndOverlapping = [
+            { ...baseEvent, _id: "first", title: "First meeting", startAt: "2026-08-27T09:00:00", endAt: "2026-08-27T10:00:00" },
+            { ...baseEvent, _id: "second", title: "Second meeting", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00" },
+            { ...baseEvent, _id: "overlap", title: "Overlapping meeting", startAt: "2026-08-27T10:30:00", endAt: "2026-08-27T11:30:00" },
+            { ...baseEvent, _id: "task", title: "Visible task", type: "task", startAt: "2026-08-27T12:00:00", endAt: "2026-08-27T12:30:00" },
+        ];
+        render(<TimeGrid calendars={testCalendars} cursor={new Date(2026, 7, 27)} days={1} events={adjacentAndOverlapping} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        const first = screen.getByRole("button", { name: /First meeting/ });
+        const second = screen.getByRole("button", { name: /Second meeting/ });
+        const overlapping = screen.getByRole("button", { name: /Overlapping meeting/ });
+        const task = screen.getByRole("button", { name: /Visible task/ });
+        expect(first).toHaveStyle({ top: "578px", height: "60px" });
+        expect(second).toHaveAttribute("data-overlap", "true");
+        expect(overlapping).toHaveAttribute("data-overlap-column", "1");
+        expect(second.style.backgroundColor).not.toBe(overlapping.style.backgroundColor);
+        expect(task).toHaveTextContent("Visible task");
+        expect(task).toHaveAttribute("data-item-type", "task");
     });
 
     test("preserves input and prevents an invalid event range", async () => {
@@ -170,7 +195,7 @@ describe("event behavior", () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
         render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T22:30:00"), startAt: new Date("2026-08-27T22:30:00"), endAt: new Date("2026-08-27T23:30:00"), title: "Late review" }} onClose={vi.fn()} onSave={onSave} />);
         expect(screen.queryByText("Time zone")).not.toBeInTheDocument();
-        expect(screen.queryByText("Does not repeat")).not.toBeInTheDocument();
+        expect(screen.getByRole("combobox", { name: "Repeat" })).toHaveTextContent("Does not repeat");
         await userEvent.click(screen.getByRole("textbox", { name: "End time" }));
         expect(screen.getByRole("option", { name: "10:45pm (15 mins)" })).toBeInTheDocument();
         expect(screen.getByRole("option", { name: "11:00pm (30 mins)" })).toBeInTheDocument();
@@ -241,51 +266,67 @@ describe("event behavior", () => {
 
     test("normalizes all-day dates and preserves saved guests", async () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
-        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "outOfOffice", cursor: new Date("2026-08-27T10:00:00"), participants: ["Alice", "Bob"] }} onClose={vi.fn()} onSave={onSave} />);
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "outOfOffice", cursor: new Date("2026-08-27T10:00:00"), participants: ["Sky", "Sage"] }} onClose={vi.fn()} onSave={onSave} />);
         expect(screen.getByRole("button", { name: /Start date: Thursday, August 27/ })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /End date:/ })).not.toBeInTheDocument();
-        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Alice");
-        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Bob");
+        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Sky");
+        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Sage");
         await userEvent.click(screen.getByTestId("save-event-button"));
         const payload = onSave.mock.calls[0][0];
-        expect(payload).toEqual(expect.objectContaining({ allDay: true, participants: ["Alice", "Bob"] }));
+        expect(payload).toEqual(expect.objectContaining({ allDay: true, participants: ["Sky", "Sage"] }));
         expect(dateKey(payload.startAt)).toBe("2026-08-27");
         expect(dateKey(payload.endAt)).toBe("2026-08-28");
     });
 
     test("searches, selects, removes, and persists event guests", async () => {
-        const alice = { _id: "person-1", name: "Alice Rao", email: "alice@example.com", avatarColor: "#1a73e8" };
-        const bob = { _id: "person-2", name: "Bob Singh", email: "bob@example.com", avatarColor: "#0f9d58" };
+        const sky = { _id: "person-1", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8" };
+        const sage = { _id: "person-2", name: "Sage", email: "sage@hackerrank.com", avatarColor: "#0f9d58" };
         const onSave = vi.fn().mockResolvedValue(undefined);
-        peopleMocks.search.mockResolvedValue([alice, bob]);
+        peopleMocks.search.mockResolvedValue([sky, sage]);
         render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "outOfOffice", cursor: new Date("2026-08-27T10:00:00") }} onClose={vi.fn()} onSave={onSave} />);
         const search = screen.getByRole("textbox", { name: "Search guests" });
         await userEvent.click(search);
-        await userEvent.click(await screen.findByRole("option", { name: /Alice Rao/ }));
-        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Alice Rao");
+        await userEvent.click(await screen.findByRole("option", { name: /Sky/ }));
+        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Sky");
         await userEvent.click(search);
-        expect(screen.queryByRole("option", { name: /Alice Rao/ })).not.toBeInTheDocument();
-        await userEvent.click(await screen.findByRole("option", { name: /Bob Singh/ }));
-        await userEvent.click(screen.getByRole("button", { name: "Remove Alice Rao" }));
-        expect(screen.getByLabelText("Selected guests")).not.toHaveTextContent("Alice Rao");
+        expect(screen.queryByRole("option", { name: /Sky/ })).not.toBeInTheDocument();
+        await userEvent.click(await screen.findByRole("option", { name: /Sage/ }));
+        await userEvent.click(screen.getByRole("button", { name: "Remove Sky" }));
+        expect(screen.getByLabelText("Selected guests")).not.toHaveTextContent("Sky");
         await userEvent.click(screen.getByTestId("save-event-button"));
-        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Bob Singh"] }));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Sage"] }));
     });
 
     test("warns about guest conflicts live and rechecks availability before save", async () => {
-        const person = { _id: "64f000000000000000000001", name: "Alice Rao", email: "alice@example.com", avatarColor: "#1a73e8" };
+        const person = { _id: "64f000000000000000000001", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8" };
         const conflict = { person, busy: [{ title: "Design review", startAt: "2026-08-27T10:15:00.000Z", endAt: "2026-08-27T11:00:00.000Z" }] };
         const onSave = vi.fn().mockResolvedValue(undefined);
         peopleMocks.search.mockResolvedValue([person]);
         availabilityMocks.conflicts.mockResolvedValue({ available: false, conflicts: [conflict] });
         render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T10:00:00"), title: "Planning" }} onClose={vi.fn()} onSave={onSave} />);
         await userEvent.click(screen.getByRole("textbox", { name: "Search guests" }));
-        await userEvent.click(await screen.findByRole("option", { name: /Alice Rao/ }));
-        expect(await screen.findByText("Alice Rao is unavailable")).toBeInTheDocument();
-        expect(screen.getByText(/Alice Rao: .*–/)).toBeInTheDocument();
+        await userEvent.click(await screen.findByRole("option", { name: /Sky/ }));
+        expect(await screen.findByText("Sky is unavailable")).toBeInTheDocument();
+        expect(screen.getByText(/Sky: .*–/)).toBeInTheDocument();
         await userEvent.click(screen.getByTestId("save-event-button"));
         expect(availabilityMocks.conflicts).toHaveBeenCalledTimes(2);
-        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Alice Rao"], participantIds: [person._id] }));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Sky"], participantIds: [person._id] }));
+    });
+
+    test("warns without blocking when a free guest is outside working hours", async () => {
+        const person = { _id: "64f000000000000000000001", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", timeZone: "America/New_York", workingHours: { startMinute: 540, endMinute: 1020 } };
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        peopleMocks.search.mockResolvedValue([person]);
+        availabilityMocks.conflicts.mockResolvedValue({ available: true, conflicts: [], withinWorkingHours: false, workingHoursWarnings: [{ person, localDate: "2026-08-27", workingDay: true }] });
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T22:00:00"), title: "Late planning" }} onClose={vi.fn()} onSave={onSave} />);
+        await userEvent.click(screen.getByRole("textbox", { name: "Search guests" }));
+        await userEvent.click(await screen.findByRole("option", { name: /Sky/ }));
+        expect(await screen.findByText("Outside working hours")).toBeInTheDocument();
+        expect(screen.getByText(/Sky: .*America\/New York/)).toBeInTheDocument();
+        availabilityMocks.conflicts.mockClear();
+        await userEvent.click(screen.getByTestId("save-event-button"));
+        expect(availabilityMocks.conflicts).toHaveBeenCalledTimes(1);
+        expect(onSave).toHaveBeenCalled();
     });
 
     test("shows both date controls only for a genuine multi-day all-day item", () => {
@@ -303,14 +344,80 @@ describe("event behavior", () => {
 
     test("respects event deletion confirmation and exposes preview details", async () => {
         const onDelete = vi.fn();
-        const event = { _id: "event-1", title: "Planning", type: "task", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false, organizer: "Mahadevan", location: "Cedar", description: "Plan launch" };
+        const event = { _id: "event-1", title: "Planning", type: "task", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false, organizer: "River", location: "Cedar", description: "Plan launch" };
         window.confirm = vi.fn(() => false);
         render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onDelete={onDelete} onEdit={vi.fn()} />);
         expect(screen.getByText("Task")).toBeInTheDocument();
-        expect(screen.getByText("Mahadevan")).toBeInTheDocument();
+        expect(screen.getByText("River")).toBeInTheDocument();
         await userEvent.click(screen.getByRole("button", { name: "Delete event" }));
         expect(onDelete).not.toHaveBeenCalled();
         window.confirm = () => true;
+    });
+
+    test("offers accessible Yes, Maybe, and No controls only to invited attendees", async () => {
+        const onRespond = vi.fn();
+        const event = {
+            _id: "event-1", title: "Planning", type: "event", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false,
+            organizer: "River", editable: false, responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 1, declined: 0, tentative: 0 },
+            participantPeople: [
+                { _id: "person-2", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", responseStatus: "accepted" },
+                { _id: "person-3", name: "Sage", email: "sage@hackerrank.com", avatarColor: "#d93025", responseStatus: "needsAction" },
+            ],
+        };
+        const { rerender } = render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onRespond={onRespond} />);
+        expect(screen.getByText("1 yes · 1 awaiting")).toBeInTheDocument();
+        expect(screen.getByText("sky@hackerrank.com")).toBeInTheDocument();
+        for (const name of ["Yes, attending", "Maybe attending", "No, declining"]) expect(screen.getByRole("button", { name })).toHaveAttribute("aria-pressed", "false");
+        await userEvent.click(screen.getByRole("button", { name: "Maybe attending" }));
+        expect(onRespond).toHaveBeenCalledWith("tentative");
+
+        rerender(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={{ ...event, editable: true, responseStatus: undefined }} onClose={vi.fn()} onDelete={vi.fn()} onEdit={vi.fn()} onRespond={onRespond} />);
+        expect(screen.queryByText("Going?")).not.toBeInTheDocument();
+        expect(screen.getByText("1 yes · 1 awaiting")).toBeInTheDocument();
+    });
+
+    test("asks for occurrence scope before responding to a recurring invitation", async () => {
+        const onRespond = vi.fn().mockResolvedValue(undefined);
+        const event = {
+            _id: "series-1", occurrenceKey: "series-1:2026-08-27", occurrenceStartAt: "2026-08-27T10:00:00.000Z", recurring: true,
+            title: "Daily planning", type: "event", startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z", allDay: false,
+            organizer: "River", editable: false, responseStatus: "needsAction", recurrence: { frequency: "daily", interval: 1, endType: "never", timeZone: "UTC" },
+        };
+        render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onRespond={onRespond} />);
+        expect(screen.getAllByRole("button", { name: /attending|declining/ }).map((button) => button.getAttribute("aria-label"))).toEqual(["Yes, attending", "No, declining", "Maybe attending"]);
+        await userEvent.click(screen.getByRole("button", { name: "No, declining" }));
+        expect(screen.getByRole("heading", { name: "RSVP to recurring event" })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("radio", { name: "All events" }));
+        await userEvent.click(screen.getByRole("button", { name: "OK" }));
+        expect(onRespond).toHaveBeenCalledWith("declined", { scope: "all", occurrenceStartAt: event.occurrenceStartAt });
+    });
+
+    test("saves Google-style repeat presets with the event", async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T10:00:00"), title: "Weekly planning" }} onClose={vi.fn()} onSave={onSave} />);
+        await userEvent.click(screen.getByRole("combobox", { name: "Repeat" }));
+        await userEvent.click(screen.getByRole("option", { name: /Weekly on/ }));
+        await userEvent.click(screen.getByTestId("save-event-button"));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recurrence: expect.objectContaining({ frequency: "weekly", interval: 1, daysOfWeek: [4] }) }));
+    });
+
+    test("marks declined invitations consistently across day and month views", () => {
+        const invitation = { _id: "event-declined", calendarId: "calendar-1", title: "Declined meeting", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false, responseStatus: "declined" };
+        const calendars = [{ _id: "calendar-1", color: "#1a73e8" }];
+        const day = render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[invitation]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        expect(day.getByRole("button", { name: /Declined meeting/ })).toHaveAttribute("data-response-status", "declined");
+        day.unmount();
+        render(<MonthView calendars={calendars} cursor={new Date(2026, 7, 27)} events={[invitation]} onCreate={vi.fn()} onDaySelect={vi.fn()} onEventSelect={vi.fn()} />);
+        expect(screen.getByRole("button", { name: /Declined meeting/ })).toHaveAttribute("data-response-status", "declined");
+    });
+
+    test("renders pending invitations outlined and accepted invitations filled", () => {
+        const calendars = [{ _id: "calendar-1", color: "#1a73e8" }];
+        const base = { _id: "invitation", calendarId: "calendar-1", title: "Planning", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false };
+        const { rerender } = render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[{ ...base, responseStatus: "needsAction" }]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        expect(screen.getByRole("button", { name: /Planning/ })).toHaveStyle({ backgroundColor: "#fff", borderColor: "#1a73e8" });
+        rerender(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[{ ...base, responseStatus: "accepted" }]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        expect(screen.getByRole("button", { name: /Planning/ })).toHaveStyle({ backgroundColor: "#1a73e8" });
     });
 
     test("uses a typed preset for focus time", async () => {
@@ -419,16 +526,36 @@ describe("calendar views", () => {
     const events = [{ _id: "event-1", calendarId: "calendar-1", title: "Planning", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false }];
 
     test("renders timed events in the day grid", () => {
-        render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={events} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        const { container } = render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={events} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
         const event = screen.getByRole("button", { name: /Planning/ });
         expect(event).toBeInTheDocument();
         expect(event.style.width).toBe("calc(100% - 24px)");
+        expect(container.querySelector(".time-view-header")).toHaveClass("empty-all-day");
+    });
+
+    test("keeps the full all-day lane when an all-day event is visible", () => {
+        const allDay = { ...events[0], _id: "holiday", title: "Holiday", allDay: true, startAt: "2026-08-27T00:00:00", endAt: "2026-08-28T00:00:00" };
+        const { container } = render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[allDay]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        expect(container.querySelector(".time-view-header")).toHaveClass("has-all-day-events");
+        expect(screen.getByRole("button", { name: /Holiday/ })).toBeInTheDocument();
     });
 
     test("uses a compact one-line layout for short events", () => {
         const shortEvent = { ...events[0], endAt: "2026-08-27T10:30:00" };
         render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[shortEvent]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
         expect(screen.getByRole("button", { name: /Planning/ })).toHaveAttribute("data-density", "micro");
+    });
+
+    test("uses the dedicated out-of-office treatment in day, week, and month views", () => {
+        const away = { ...events[0], _id: "away", title: "Out of office", type: "outOfOffice", startAt: "2026-08-27T18:30:00", endAt: "2026-08-27T23:59:00" };
+        const props = { calendars, cursor: new Date(2026, 7, 27), events: [away], onCreate: vi.fn(), onEventSelect: vi.fn() };
+        const { container, rerender } = render(<TimeGrid {...props} days={1} />);
+        expect(screen.getByRole("button", { name: /Out of office/ })).toHaveAttribute("data-item-type", "outOfOffice");
+        expect(container.querySelector(".out-of-office-icon")).toBeInTheDocument();
+        rerender(<TimeGrid {...props} days={7} />);
+        expect(container.querySelector('.timed-event[data-item-type="outOfOffice"] .out-of-office-icon')).toBeInTheDocument();
+        rerender(<MonthView {...props} onDaySelect={vi.fn()} />);
+        expect(container.querySelector('.month-event[data-item-type="outOfOffice"] .out-of-office-icon')).toBeInTheDocument();
     });
 
     test("keeps a scrolling week header aligned with its time grid", () => {
@@ -474,12 +601,23 @@ describe("calendar views", () => {
         expect(onCreate).not.toHaveBeenCalled();
     });
 
-    test("shows overflow counts and continuation events in month view", () => {
+    test("opens month overflow in a day popover and navigates only from its date", async () => {
         const manyEvents = Array.from({ length: 4 }, (_, index) => ({ ...events[0], _id: `event-${index}`, title: `Event ${index}` }));
         const overnight = { ...events[0], _id: "overnight", title: "Overnight", startAt: "2026-08-26T23:00:00", endAt: "2026-08-27T01:00:00" };
-        render(<MonthView calendars={calendars} cursor={new Date(2026, 7, 27)} events={[overnight, ...manyEvents]} onCreate={vi.fn()} onDaySelect={vi.fn()} onEventSelect={vi.fn()} />);
-        expect(screen.getByRole("button", { name: "+2 more" })).toBeInTheDocument();
+        const onDaySelect = vi.fn();
+        const onEventSelect = vi.fn();
+        render(<MonthView calendars={calendars} cursor={new Date(2026, 7, 27)} events={[overnight, ...manyEvents]} onCreate={vi.fn()} onDaySelect={onDaySelect} onEventSelect={onEventSelect} />);
         expect(screen.getByText("Continues")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "+2 more" }));
+        const popover = screen.getByRole("dialog", { name: "Events on August 27, 2026" });
+        expect(popover).toHaveStyle({ width: "292px" });
+        expect(onDaySelect).not.toHaveBeenCalled();
+        expect(within(popover).getAllByRole("button")).toHaveLength(7);
+        await userEvent.click(within(popover).getByRole("button", { name: /Event 3/ }));
+        expect(onEventSelect).toHaveBeenCalledWith(expect.objectContaining({ title: "Event 3" }));
+        await userEvent.click(screen.getByRole("button", { name: "+2 more" }));
+        await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Open Thursday, August 27 in day view" }));
+        expect(onDaySelect).toHaveBeenCalledWith(expect.any(Date));
     });
 
     test("distinguishes an empty search result", () => {

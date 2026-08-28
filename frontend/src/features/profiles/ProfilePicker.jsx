@@ -1,6 +1,6 @@
 import { ProfileAvatar } from "./ProfileAvatar.jsx";
 
-export function ProfilePicker({ error = "", loading = false, onRetry, onSelect, profiles = [] }) {
+export function ProfilePicker({ error = "", loading = false, onLogout, onRetry, onSelect, profiles = [] }) {
     return <main className="profile-picker-page">
         <header className="profile-picker-brand" aria-label="Calendar"><span className="brand-date"><span className="brand-binding" />31</span><span>Calendar</span></header>
         <section className="profile-picker-panel" aria-labelledby="profile-picker-title">
@@ -11,7 +11,8 @@ export function ProfilePicker({ error = "", loading = false, onRetry, onSelect, 
                 <ProfileAvatar profile={profile} size="large" />
                 <strong>{profile.name}</strong>
             </button>)}</div>}
-            {!loading && !error && profiles.length === 0 && <div className="profile-picker-status">No demo profiles are available.</div>}
+            {!loading && !error && profiles.length === 0 && <div className="profile-picker-status">No profiles are available.</div>}
+            <button className="profile-picker-signout" type="button" onClick={onLogout}>Sign out of workspace</button>
         </section>
     </main>;
 }

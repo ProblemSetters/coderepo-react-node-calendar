@@ -4,7 +4,7 @@ configuration:
   readonly_paths:
     - backend/__tests__/**
     - backend/jest.config.js
-    - backend/src/scripts/seed.js
+    - backend/src/scripts/**
     - backend/src/shared/config/database.js
     - backend/src/shared/config/index.js
     - frontend/src/__tests__/**

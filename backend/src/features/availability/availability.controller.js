@@ -14,6 +14,7 @@ const conflictSchema = z.object({
     participantIds: z.array(z.string()).min(1).max(100).refine((ids) => new Set(ids).size === ids.length, "Select each person only once."),
     startAt: z.coerce.date(),
     endAt: z.coerce.date(),
+    timeZone: z.string().refine(isTimeZone, "Select a valid IANA time zone.").default("UTC"),
 }).refine((value) => value.startAt < value.endAt, { message: "endAt must be after startAt.", path: ["endAt"] });
 
 export async function suggestTimes(request, response, next) {

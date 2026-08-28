@@ -16,5 +16,5 @@ export async function searchPeople(request, response, next) {
 }
 
 export async function listProfiles(request, response, next) {
-    try { response.json({ data: await personService.listProfiles() }); } catch (error) { next(error); }
+    try { response.json({ data: await personService.listProfiles(request.account?.allowedProfileIds) }); } catch (error) { next(error); }
 }

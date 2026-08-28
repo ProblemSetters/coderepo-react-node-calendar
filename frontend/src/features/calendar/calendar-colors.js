@@ -27,6 +27,15 @@ export const foregroundForColor = (background) => {
     return contrast(1, backgroundLuminance) >= contrast(luminance("#202124"), backgroundLuminance) ? "#fff" : "#202124";
 };
 
+export const overlapColor = (background, column, columns) => {
+    const match = /^#([0-9a-f]{6})$/i.exec(String(background || ""));
+    if (!match || columns <= 1 || column === 0) return background;
+    const value = Number.parseInt(match[1], 16);
+    const factor = Math.max(.72, 1 - Math.min(column, 3) * .09);
+    const channels = [value >> 16, value >> 8 & 255, value & 255].map((channelValue) => Math.round(channelValue * factor));
+    return `#${channels.map((channelValue) => channelValue.toString(16).padStart(2, "0")).join("")}`;
+};
+
 export const nextAvailableCalendarColor = (usedColors = []) => {
     const used = new Set(usedColors.map((color) => String(color).toLowerCase()));
     return calendarColors.find((option) => !used.has(option.value))?.value || calendarColors[used.size % calendarColors.length].value;
