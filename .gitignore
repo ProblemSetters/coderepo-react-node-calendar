@@ -1,0 +1,14 @@
+node_modules/
+.bun-tmp/
+package-lock.json
+.mongodb/
+coverage/
+dist/
+build/
+.env
+.env.local
+.seed-signature
+*.log
+.DS_Store
+output/*.xml
+.seed-signature

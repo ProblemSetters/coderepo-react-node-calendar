@@ -1,0 +1,21 @@
+{
+    "name": "calendar",
+    "version": "1.0.0",
+    "private": true,
+    "description": "React and Node calendar monorepo",
+    "workspaces": ["frontend", "backend"],
+    "scripts": {
+        "postinstall": "bash setup.sh --ensure-seeded",
+        "prestart": "bash setup.sh --start",
+        "start": "concurrently \"bun run dev:frontend\" \"bun run dev:backend\"",
+        "dev:frontend": "cd frontend && bun run dev",
+        "dev:backend": "cd backend && bun run dev",
+        "seed": "cd backend && bun run seed",
+        "test": "cd frontend && bun run test && cd ../backend && bun run test",
+        "test:coverage": "cd frontend && bun run test:coverage && cd ../backend && bun run test:coverage",
+        "build": "cd frontend && bun run build"
+    },
+    "devDependencies": {
+        "concurrently": "9.2.1"
+    }
+}
