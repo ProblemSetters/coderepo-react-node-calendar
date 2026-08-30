@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { Modal } from "../../shared/components/Modal.jsx";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 import { addDays, dateKey, eventDefaults } from "../../shared/utils/date.js";
 import { PeoplePicker } from "../people/PeoplePicker.jsx";
@@ -40,7 +41,7 @@ const participantPeople = (draft, participants) => {
     });
 };
 
-export function EventEditor({ calendars, draft, onClose, onSave }) {
+export function EventEditor({ calendars, draft, onClose, onDelete, onSave }) {
     const defaults = useMemo(() => {
         if (draft?._id) return { ...draft, startAt: draft.seriesStartAt || draft.startAt, endAt: draft.seriesEndAt || draft.endAt, type: draft.type || "event" };
         const type = draft?.type || "event";
@@ -64,6 +65,10 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
+    const [discardConfirmation, setDiscardConfirmation] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState("");
     const [conflictState, setConflictState] = useState({ checking: false, error: "", conflicts: [], workingHoursWarnings: [], key: "" });
     const conflictRequest = useRef(0);
     const config = typeConfig[type] || typeConfig.event;
@@ -108,7 +113,7 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
         return () => window.clearTimeout(timer);
     }, [conflictKey, conflictPayload]);
     const markDirty = () => setDirty(true);
-    const close = () => { if (!saving && (!dirty || window.confirm("Discard your unsaved changes?"))) onClose(); };
+    const close = () => { if (!saving) { if (dirty) setDiscardConfirmation(true); else onClose(); } };
     const applyShiftedEnd = (nextStart, previousStart = startAt, previousEnd = endAt) => {
         const shifted = shiftEndWithStart(previousStart, previousEnd, nextStart);
         if (!shifted) return;
@@ -171,8 +176,8 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
             await onSave({ title: title.trim(), type, description: values.description.trim(), location: values.location.trim(), participants: guests.map((person) => person.name.trim()).filter(Boolean), participantIds: guestIds, calendarId, color: values.color || null, allDay, startAt: startAt.toISOString(), endAt: endAt.toISOString(), recurrence });
         } catch (saveError) { setError(saveError.message); setSaving(false); }
     };
-    return <Modal className="event-editor-modal" onClose={close}><form className="event-editor" onSubmit={submit} onChange={markDirty}>
-        <div className="modal-header"><span className="modal-grip" /><h2>{defaults._id ? "Edit calendar item" : "Create calendar item"}</h2><button type="button" className="icon-button" aria-label="Close" disabled={saving} onClick={close}><MaterialIcon size={22}>close</MaterialIcon></button></div>
+    return <><Modal className="event-editor-modal" onClose={close}><form className="event-editor" onSubmit={submit} onChange={markDirty}>
+        <div className="modal-header"><span className="modal-grip" /><h2>{defaults._id ? "Edit calendar item" : "Create calendar item"}</h2>{defaults._id && defaults.editable !== false && onDelete && <button type="button" className="icon-button event-editor-delete" aria-label="Delete event" title="Delete event" disabled={saving || deleting} onClick={() => { setDeleteError(""); setDeleteConfirmation(true); }}><MaterialIcon size={20}>delete</MaterialIcon></button>}<button type="button" className="icon-button" aria-label="Close" disabled={saving || deleting} onClick={close}><MaterialIcon size={22}>close</MaterialIcon></button></div>
         <label className="title-field"><span>Title</span><input autoFocus data-autofocus data-testid="event-title-input" maxLength={140} value={title} placeholder={config.placeholder} onChange={(event) => { setTitle(event.target.value); markDirty(); }} /></label>
         <div className="event-type-tabs" role="tablist" aria-label="Calendar item type">{Object.entries(typeConfig).map(([value, option]) => <button aria-selected={type === value} key={value} role="tab" type="button" onClick={() => changeType(value)}>{option.label}</button>)}</div>
         <div className="form-row editor-date-time-row"><MaterialIcon>schedule</MaterialIcon><div className="editor-date-time-fields">
@@ -199,5 +204,5 @@ export function EventEditor({ calendars, draft, onClose, onSave }) {
         <div className="form-row"><MaterialIcon>palette</MaterialIcon><fieldset className="color-palette"><legend>Event color</legend>{palette.map(({ color, label }) => <label title={label} key={label} className={color ? "color-choice" : "color-choice calendar-color-choice"} style={color ? { "--choice": color } : undefined}><input name="color" type="radio" value={color} defaultChecked={(defaults.color || "") === color} /><span>{color ? <MaterialIcon size={15}>check</MaterialIcon> : <MaterialIcon size={17}>event</MaterialIcon>}</span><span className="sr-only">{label}</span></label>)}</fieldset></div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="modal-actions"><button type="button" disabled={saving} onClick={close}>Cancel</button><button className="primary-button" data-testid="save-event-button" disabled={saving || !canSubmit}>{saving ? "Saving…" : "Save"}</button></div>
-    </form></Modal>;
+    </form></Modal>{discardConfirmation && <ConfirmationDialog confirmLabel="Discard" destructive icon="warning" message="Your changes have not been saved. If you leave now, they will be lost." onCancel={() => setDiscardConfirmation(false)} onConfirm={onClose} title="Discard changes?" />}{deleteConfirmation && <ConfirmationDialog busy={deleting} confirmLabel="Delete" destructive error={deleteError} message={`“${title || defaults.title || "Untitled event"}” will be permanently removed from this calendar.`} onCancel={() => { setDeleteConfirmation(false); setDeleteError(""); }} onConfirm={async () => { try { setDeleting(true); setDeleteError(""); await onDelete(); } catch (requestError) { setDeleteError(requestError.message || "The event could not be deleted."); setDeleting(false); } }} title="Delete event?" />}</>;
 }

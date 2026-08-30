@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 
 const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -51,7 +50,7 @@ export function RepeatSelector({ startAt, value, onChange }) {
     const update = (fields) => setCustom((current) => ({ ...current, ...fields }));
     const saveCustom = () => { onChange(custom); setCustomOpen(false); };
     return <>
-        <div className="repeat-select"><MaterialIcon size={19}>repeat</MaterialIcon><SelectMenu ariaLabel="Repeat" value={selected} onChange={choose} options={[...presets.map(({ value, label }) => ({ value, label })), { value: "custom", label: "Custom…" }]} /></div>
+        <div className="repeat-select"><SelectMenu ariaLabel="Repeat" value={selected} onChange={choose} options={[...presets.map(({ value, label }) => ({ value, label })), { value: "custom", label: "Custom…" }]} /></div>
         {customOpen && <div className="recurrence-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCustomOpen(false); }}><section aria-labelledby="custom-recurrence-title" aria-modal="true" className="recurrence-dialog" role="dialog">
             <h3 id="custom-recurrence-title">Custom recurrence</h3>
             <div className="recurrence-line"><span>Repeat every</span><input aria-label="Repeat interval" min="1" max="99" type="number" value={custom.interval} onChange={(event) => update({ interval: Number(event.target.value) || 1 })} /><SelectMenu ariaLabel="Repeat frequency" value={custom.frequency} onChange={(frequency) => update({ frequency, daysOfWeek: frequency === "weekly" && !custom.daysOfWeek.length ? [date.getDay()] : custom.daysOfWeek })} options={[{ value: "daily", label: "day" }, { value: "weekly", label: "week" }, { value: "monthly", label: "month" }, { value: "yearly", label: "year" }]} /></div>

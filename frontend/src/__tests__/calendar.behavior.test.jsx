@@ -342,16 +342,47 @@ describe("event behavior", () => {
         expect(screen.getByTestId("save-event-button")).toBeEnabled();
     });
 
-    test("respects event deletion confirmation and exposes preview details", async () => {
+    test("confirms unsaved editor changes without leaving the app", async () => {
+        const onClose = vi.fn();
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "event", cursor: new Date("2026-08-27T10:00:00") }} onClose={onClose} onSave={vi.fn()} />);
+        await userEvent.type(screen.getByTestId("event-title-input"), "Planning");
+        await userEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+        const confirmation = screen.getByRole("dialog", { name: "Discard changes?" });
+        expect(within(confirmation).getByText(/have not been saved/)).toBeInTheDocument();
+        expect(onClose).not.toHaveBeenCalled();
+        await userEvent.click(within(confirmation).getByRole("button", { name: "Discard" }));
+        expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    test("shows deletion only while editing an existing owned event", async () => {
+        const onDelete = vi.fn().mockResolvedValue(undefined);
+        const calendars = [{ _id: "calendar-1", name: "My calendar", visible: true }];
+        const existingEvent = { _id: "event-1", calendarId: "calendar-1", title: "Planning", type: "event", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false };
+        const { unmount } = render(<EventEditor calendars={calendars} draft={existingEvent} onClose={vi.fn()} onDelete={onDelete} onSave={vi.fn()} />);
+        const deleteButton = screen.getByRole("button", { name: "Delete event" });
+        expect(deleteButton.querySelector("svg")).toBeInTheDocument();
+        await userEvent.click(deleteButton);
+        const confirmation = screen.getByRole("dialog", { name: "Delete event?" });
+        await userEvent.click(within(confirmation).getByRole("button", { name: "Delete", exact: true }));
+        expect(onDelete).toHaveBeenCalledOnce();
+
+        unmount();
+        render(<EventEditor calendars={calendars} draft={{ cursor: new Date("2026-08-27T10:00:00") }} onClose={vi.fn()} onDelete={onDelete} onSave={vi.fn()} />);
+        expect(screen.queryByRole("button", { name: "Delete event" })).not.toBeInTheDocument();
+    });
+
+    test("keeps event deletion confirmation inside the app", async () => {
         const onDelete = vi.fn();
         const event = { _id: "event-1", title: "Planning", type: "task", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false, organizer: "River", location: "Cedar", description: "Plan launch" };
-        window.confirm = vi.fn(() => false);
         render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onDelete={onDelete} onEdit={vi.fn()} />);
         expect(screen.getByText("Task")).toBeInTheDocument();
         expect(screen.getByText("River")).toBeInTheDocument();
         await userEvent.click(screen.getByRole("button", { name: "Delete event" }));
+        expect(screen.getByRole("heading", { name: "Delete event?" })).toBeInTheDocument();
         expect(onDelete).not.toHaveBeenCalled();
-        window.confirm = () => true;
+        await userEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+        expect(screen.queryByRole("heading", { name: "Delete event?" })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Delete event" })).toBeInTheDocument();
     });
 
     test("offers accessible Yes, Maybe, and No controls only to invited attendees", async () => {
@@ -479,6 +510,21 @@ describe("calendar creation", () => {
         await userEvent.click(screen.getByTestId("create-calendar-submit"));
         expect(await screen.findByRole("alert")).toHaveTextContent("already exists");
         expect(screen.getByTestId("calendar-name-input")).toHaveValue("Work");
+    });
+
+    test("confirms calendar deletion in-app and preserves the editor on failure", async () => {
+        const calendar = { _id: "work", name: "Work", color: "#0b8043", visible: true, isPrimary: false, description: "", timeZone: "UTC" };
+        const onDelete = vi.fn().mockRejectedValue(new Error("Calendar still contains events."));
+        render(<CalendarEditor calendar={calendar} onClose={vi.fn()} onDelete={onDelete} onSave={vi.fn()} />);
+        const deleteButton = screen.getByRole("button", { name: "Delete", exact: true });
+        expect(deleteButton.querySelector("svg")).toBeInTheDocument();
+        await userEvent.click(deleteButton);
+        const confirmation = screen.getByRole("dialog", { name: "Delete calendar?" });
+        expect(within(confirmation).getByText(/Only empty calendars/)).toBeInTheDocument();
+        await userEvent.click(within(confirmation).getByRole("button", { name: "Delete", exact: true }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("still contains events");
+        expect(screen.getByRole("heading", { name: "Calendar settings" })).toBeInTheDocument();
+        expect(screen.queryByRole("dialog", { name: "Delete calendar?" })).not.toBeInTheDocument();
     });
 
     test("offers display-only, settings, and persisted palette actions", async () => {

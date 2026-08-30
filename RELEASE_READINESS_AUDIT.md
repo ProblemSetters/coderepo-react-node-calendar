@@ -1,6 +1,6 @@
 # Calendar release-readiness audit
 
-This is the authoritative implementation, verification, backlog, and QuickBites-alignment report for the Calendar repository as audited on **August 29, 2026**.
+This is the authoritative implementation, verification, backlog, and QuickBites-alignment report for the Calendar repository as audited on **August 30, 2026**.
 
 ## Audit summary
 
@@ -8,18 +8,19 @@ This is the authoritative implementation, verification, backlog, and QuickBites-
 | --- | --- |
 | Repository | `ProblemSetters/coderepo-react-node-calendar` |
 | Branch | `solution-prod`, tracking `origin/solution-prod` |
+| Working tree | Current UI/dialog/icon/audit improvements are verified but not yet committed or pushed |
 | Current-scope confidence | **High** for the scenarios covered below |
 | Release/freeze decision | **Not ready to freeze as a HackerRank assessment yet** |
-| Frontend tests | **100/100 passed** in 4 suites |
+| Frontend tests | **105/105 passed** in 5 suites |
 | Backend tests | **54/54 passed** in 4 suites |
-| Total automated tests | **154/154 passed** |
-| Frontend coverage | 83.37% statements, 74.49% branches, 82.40% functions, 91.81% lines |
+| Total automated tests | **159/159 passed** |
+| Frontend coverage | 83.56% statements, 74.86% branches, 82.24% functions, 91.98% lines |
 | Backend coverage | 91.42% statements, 77.52% branches, 91.79% functions, 93.57% lines |
-| Production build | Passed; 59 modules, 295.93 kB JavaScript and 77.59 kB CSS before gzip |
+| Production build | Passed; 60 modules, 299.89 kB JavaScript and 79.49 kB CSS before gzip |
 | Repository-level test command | Passed end to end |
 | Static diff check | Passed |
 | Browser QA | Passed for the live scenarios documented below |
-| Tracked Git archive | 200 kB, below the 5 MB CodeRepo limit |
+| Tracked Git archive | 850 KiB at `HEAD`, below the 5 MB CodeRepo limit |
 | QuickBites alignment | Strong architectural alignment; assessment packaging is incomplete |
 
 ## Executive verdict
@@ -35,6 +36,9 @@ No finite test suite can prove every possible string, date, timezone, browser, d
 - Moved authentication account queries out of the service and into `auth.repository.js`, restoring the same controller → service → repository layering used throughout the backend.
 - Changed the assessment login secret control from a native password input to the CodeRepo-safe text-input pattern with autocomplete disabled and CSS masking; its behavior is covered by the login integration test.
 - Reverified the recently corrected event-editor guest search/scroll panel and main header search layering against the existing live-browser scenarios.
+- Replaced browser-owned confirmation prompts with accessible, responsive in-app dialogs for event deletion, calendar deletion, and unsaved-change dismissal.
+- Completed the shared SVG icon registry for every icon referenced by the application and added an automated non-empty-path guard plus a visible fallback for future naming mistakes.
+- Removed the unneeded leading recurrence glyph from the editor while retaining the dropdown arrow and recurrence icon in event details.
 - Removed stale implementation comments and rechecked the application for unfinished markers, old identity data, default native selects, undeclared workspace dependencies, and whitespace errors.
 
 ## What is built now
@@ -100,6 +104,8 @@ Status: **Complete for the documented views.**
 - Required title, positive chronology, field length, valid calendar, color, and identifier validation.
 - Save progress and inline mutation errors that preserve entered values.
 - Preview, Edit, Cancel, Delete confirmation, and Escape handling.
+- Existing owned events expose the same visible trash action in Preview and Edit; new drafts and read-only invited events correctly omit it. Secondary-calendar settings pair the Delete label with the same trash icon, while protected primary calendars remain non-deletable.
+- Event deletion, calendar deletion, and unsaved-change dismissal use application-owned dialogs with safe default focus, keyboard/backdrop dismissal, mutation progress, and inline failure feedback; no production flow calls a native browser alert, confirm, or prompt.
 - Edit replaces the preview; successful Save closes the complete flow, so no stale preview remains.
 
 Status: **Complete for single items and core recurring series. Per-instance edit/delete exceptions remain future work. Appointment schedule is currently an item type, not a public booking product.**
@@ -221,21 +227,21 @@ Status: **Functionally strong; authentication, profile authorization, event owne
 | Check | Result |
 | --- | --- |
 | `npm test` at the repository root | Passed: frontend then backend |
-| Frontend `npm test` | 4 suites, 100 tests passed |
+| Frontend `npm test` | 5 suites, 105 tests passed |
 | Backend `npm test` | 4 suites, 54 tests passed |
-| Frontend `npm run test:coverage` | Passed; 83.37% statements, 74.49% branches, 82.40% functions, 91.81% lines |
+| Frontend `npm run test:coverage` | Passed; 83.56% statements, 74.86% branches, 82.24% functions, 91.98% lines |
 | Backend `npm run test:coverage` | Passed; 91.42% statements, 77.52% branches, 91.79% functions, 93.57% lines |
-| Frontend `npm run build` | Passed; 59 modules transformed |
+| Frontend `npm run build` | Passed; 60 modules transformed |
 | `git diff --check` | Passed |
 | `npm ls --workspaces --depth=0` | Passed; declared workspace packages resolve |
 | Live authentication/API smoke | Health, login, session, and profiles returned `200`; five profiles were visible |
 | Seed/profile smoke | Every profile token loaded its own calendars plus invited events; every returned item had a non-empty title and positive chronology |
 | JUnit output | `output/frontend.xml` and `output/results.xml` generated |
-| Tracked archive size | 200 kB at `HEAD` |
+| Tracked archive size | 850 KiB at `HEAD` |
 
 The backend suite uses MongoDB Memory Server and was run with local-port permission. Node prints an experimental VM Modules warning during Jest startup; the suites themselves pass.
 
-The read-only seeded-data smoke returned River `3 calendars / 18 events`, Sky `2 / 38`, Sage `2 / 17`, Ember `2 / 48`, and Nova `2 / 48` inside the audited date window. Higher counts for invitees are expected because profile-scoped event visibility includes events they own and events to which they are invited.
+The fresh read-only seeded-data smoke covered a 59-day window and returned River `3 calendars / 75 expanded events`, Sky `2 / 86`, Sage `2 / 90`, Ember `2 / 74`, and Nova `2 / 96`. Every returned occurrence had a non-empty title and positive chronology. Higher counts for invitees are expected because profile-scoped visibility includes owned and invited events, and recurring series are expanded within the requested range. All five selectable identities use the `@hackerrank.com` domain.
 
 ### Edge and failure partitions covered automatically
 
@@ -244,7 +250,7 @@ The read-only seeded-data smoke returned River `3 calendars / 18 events`, Sky `2
 | Profiles | load, selection, switch, persistence, stale ID, empty list, API failure, retry, exclusive menus, Escape, focus restoration |
 | Navigation | Day/Week/Month, Today, previous/next, leap year, cross-month/year, Monday week boundary, mini-calendar independence, preference persistence |
 | Date/time editor | 96 starts, full-day end choices, valid custom minutes, invalid text, native events, duration preservation, midnight rollover, end-date show/hide, all-day normalization |
-| Item lifecycle | six types, blank title, invalid range, disabled Save, save progress, create/edit/delete success, cancel confirmation, backend failure preservation, preview/editor closure |
+| Item lifecycle | six types, blank title, invalid range, disabled Save, save progress, create/edit/delete success, in-app delete/discard confirmations, safe cancel focus, backend failure preservation, preview/editor closure |
 | Rendering | timed, short, overlapping, all-day, multi-day, cross-midnight, working location, Out of office, Month overflow, double-click propagation |
 | Calendars | create, defaults, trim, duplicate name, invalid metadata, update, display-only, preset/custom/default colors, failure, deletion protections, malformed/missing IDs |
 | Search | compact/advanced entry, every filter, active/all scope, local inclusive dates, invalid range, special characters, loading, empty, failure, retry |
@@ -255,8 +261,20 @@ The read-only seeded-data smoke returned River `3 calendars / 18 events`, Sky `2
 | Availability | shared hours, different local hours, DST zone, owner/participant busy data, persisted invited events, weekends, elapsed intervals, full calendars, touching boundaries, invalid duration/range/IDs, missing/duplicate people |
 | Comparison | owner plus participants, working windows, owner out-of-hours creation, blocked participant out-of-hours creation, three-second notice, busy-event selection, API retry, 15-minute draft boundaries |
 | API/client resilience | malformed/missing IDs, invalid payloads, unknown routes, CORS, empty delete response, malformed/non-JSON response, network failure |
+| Shared UI primitives | every production icon name resolves to a non-empty SVG path; unknown names use a visible fallback; application dialogs replace browser alert/confirm/prompt; custom selects replace native `<select>` controls |
 
 ### Live browser verification
+
+Fresh checks on August 30, 2026:
+
+- The running app restored the authenticated River workspace and loaded three visible calendars plus populated seeded events.
+- Desktop 1280×720 had `body.scrollWidth === document.scrollWidth === innerWidth`, with no open-dialog residue after the tested flow.
+- The owned-event preview exposed visible Edit, Delete, and Close SVG paths; Edit exposed its own visible Delete action.
+- The repeat control had no leading decorative icon after the requested cleanup; only its dropdown affordance remained.
+- A dirty editor opened the in-app **Discard changes?** dialog with a non-empty warning SVG path, no native JavaScript dialog, and Cancel initially focused.
+- A basic live accessibility sanity pass found zero visible buttons without accessible names, zero visible fields without names, zero duplicate IDs, and zero images without `alt`.
+
+Previously recorded responsive and workflow checks retained as regression evidence:
 
 - Desktop 1440×900: no document/body horizontal overflow.
 - Tablet 840×900: no document/body horizontal overflow.
@@ -277,8 +295,11 @@ The read-only seeded-data smoke returned River `3 calendars / 18 events`, Sky `2
 - Recurrence editor: live desktop QA exposed every Google-style preset and the custom interval, frequency, weekday, monthly, and ending controls without saving test data.
 - Organizer event preview: immediately displayed `1 no` plus the responding guest’s identity, HackerRank email, and status.
 - Mobile 390×844 RSVP dialog: measured 358 pixels wide, remained fully inside the viewport, and needed no internal scrolling (`clientHeight === scrollHeight`).
+- Event and calendar deletion opened centered application dialogs instead of browser prompts; Cancel received initial focus and destructive failures remained inside the relevant flow.
+- Closing a dirty event editor opened the in-app **Discard changes?** dialog without losing the draft; its Cancel action was initially focused.
+- Mobile 390×844 confirmation QA measured 358×177 pixels with 16-pixel side clearance, no body overflow, and no native JavaScript dialog.
 - Another person at 8:00 AM: creation was blocked with the expected message, which disappeared after three seconds.
-- Browser diagnostics: no application runtime warnings or errors during the final recorded checks.
+- Browser diagnostics: no application runtime warnings or errors during the previously recorded full-browser checks.
 
 The live audit persisted an RSVP transition and restored the demonstration invitation to **Yes** afterward. Event Save/Delete behavior remains covered by frontend orchestration tests and backend API integration tests.
 
@@ -329,7 +350,7 @@ Required action: update the PRD, specs, test-ID tables, API/data contracts, and 
 
 - Clean `bun install` from an empty dependency directory was not performed because it would destructively replace the user’s current workspace installation.
 - `solution-prod` and the not-yet-created `base-prod` have not both been uploaded and exercised on HackerRank.
-- The tracked `HEAD` archive is 200 kB, but the latest working-tree changes must be committed before the final downloadable archive represents this exact implementation.
+- The tracked `HEAD` archive is 850 KiB, but the latest working-tree changes must be committed before the final downloadable archive represents this exact implementation.
 
 Required action: after curation, run a clean install/start/task-test/build on both branches and perform HackerRank platform verification.
 
@@ -338,6 +359,12 @@ Required action: after curation, run a clean install/start/task-test/build on bo
 A Prettier config exists, but Prettier is not installed and no format-check script exists. QuickBites also lacks a root formatting command, but the CodeRepo guideline requires consistent Prettier-only formatting.
 
 Required action: add a pinned Prettier development dependency and a non-mutating `format:check` command, then format both branches identically before defects are introduced.
+
+### P2 — add a dedicated lint/static-analysis gate
+
+The production build and tests catch syntax and behavioral regressions, but there is no ESLint command or equivalent repository-level static-analysis script. QuickBites also lacks this gate, so this is a quality improvement beyond simple structural parity rather than a Calendar-only deviation.
+
+Required action: add one deterministic non-mutating lint command with React Hooks coverage, run it on both branches, and keep its configuration identical across the assessment diff.
 
 ### P2 — add the remaining high-value test partitions
 
@@ -382,13 +409,13 @@ The Calendar codebase is **similar in architecture**, but it is not yet equivale
 | Area | QuickBites | Calendar | Decision/action |
 | --- | --- | --- | --- |
 | Branches | Reference repository includes assessment branch history | Only `solution-prod` is available | Create the independent `base-prod` flow |
-| Test organization | `task1`…`task8` behavior suites | Four frontend suites and four aggregate backend suites | Split by the five independent assessment tasks |
+| Test organization | `task1`…`task8` behavior suites | Five frontend suites and four aggregate backend suites | Split by the five independent assessment tasks |
 | Root test scripts | One command and XML file per task | Aggregate `test` and `test:coverage` only | Add `test:task1`…`test:task5` |
 | Frontend decomposition | Pages/components/services/hooks/contexts inside features | Flatter feature components; `App.jsx` owns orchestration | Current size is manageable; extract a workspace hook/reducer if orchestration grows |
 | UI stack | Tailwind/Shadcn-style components and dark presentation | Custom CSS and light Google-style design | Intentional user-approved product deviation; do not convert blindly |
 | Authentication | JWT/password flow | Bcrypt workspace login plus expiring workspace/profile JWTs | Aligned while retaining assessment-friendly access to every allowed profile |
 | Database reset | Seed signature preserves normal work in both references | Same seed-signature behavior | This matches QuickBites but differs from the guideline’s reset-on-restart wording; document the approved policy |
-| Test identifiers | Task-oriented tests drive stable selectors | Accessible roles plus 11 explicit `data-testid`s | Reconcile identifiers with final technical specs |
+| Test identifiers | Task-oriented tests drive stable selectors | Accessible roles plus 12 explicit `data-testid` patterns | Reconcile identifiers with final technical specs |
 
 QuickBites should be treated as a structural and curation reference, not copied file for file. Calendar adopts its relevant password/JWT boundary while retaining the user-approved Google-style light UI and avoiding unrelated food-delivery dependencies or routing.
 

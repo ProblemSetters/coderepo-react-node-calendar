@@ -1,6 +1,6 @@
 # Calendar implementation status and quality audit
 
-> Archived point-in-time audit: superseded by [RELEASE_READINESS_AUDIT.md](./RELEASE_READINESS_AUDIT.md), which contains the current **154-test** verification, implemented-feature inventory, remaining backlog, authentication/repository corrections, and QuickBites comparison. The historical body below is intentionally not the release decision.
+> Archived point-in-time audit: superseded by [RELEASE_READINESS_AUDIT.md](./RELEASE_READINESS_AUDIT.md), which contains the current **159-test** verification, implemented-feature inventory, remaining backlog, authentication/repository corrections, and QuickBites comparison. The historical body below is intentionally not the release decision.
 
 | Audit field | Result |
 | --- | --- |

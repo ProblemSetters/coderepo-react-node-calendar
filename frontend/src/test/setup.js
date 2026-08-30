@@ -4,7 +4,6 @@ import { afterEach } from "vitest";
 
 HTMLDialogElement.prototype.showModal = function showModal() { this.open = true; };
 HTMLDialogElement.prototype.close = function close() { this.open = false; };
-window.confirm = () => true;
 if (!globalThis.localStorage) {
     const values = new Map();
     const storage = {

@@ -306,10 +306,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-editor-actions button:hover:not(:disabled) { background: #f6fafe; }
 .calendar-editor-actions .primary-button { min-width: 126px; background: var(--blue); color: #fff; }
 .calendar-editor-actions .primary-button:hover:not(:disabled) { background: var(--blue-hover); }
-.calendar-editor-actions .calendar-delete-action { margin-right: auto; color: var(--danger); }
+.calendar-editor-actions .calendar-delete-action { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; color: var(--danger); }
 .calendar-editor-actions .calendar-delete-action:hover:not(:disabled) { background: #fce8e6; }
 .calendar-editor-actions button:disabled { opacity: .55; cursor: default; }
 .calendar-editor-actions .primary-button:disabled { background: #d3e3fd; color: #3c5f8a; opacity: 1; cursor: wait; box-shadow: none; }
+
+.confirmation-dialog-modal { width: min(420px, calc(100vw - 32px)); max-width: 420px; padding: 0; overflow: hidden; border: 0; border-radius: 20px; background: #fff; color: #202124; box-shadow: 0 12px 36px rgb(60 64 67 / 32%); }
+.confirmation-dialog-modal::backdrop { background: rgb(32 33 36 / 40%); backdrop-filter: blur(1px); }
+.confirmation-dialog { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 16px; padding: 24px; }
+.confirmation-dialog-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #e8f0fe; color: #0b57d0; }
+.confirmation-dialog-icon.destructive { background: #fce8e6; color: #b3261e; }
+.confirmation-dialog-content { min-width: 0; }
+.confirmation-dialog h2 { margin: 1px 0 8px; color: #202124; font-size: 20px; font-weight: 500; letter-spacing: -.2px; line-height: 26px; }
+.confirmation-dialog-content > p { margin: 0; overflow-wrap: anywhere; color: #5f6368; font-size: 14px; line-height: 20px; }
+.confirmation-dialog-content .confirmation-dialog-error { margin-top: 12px; color: #b3261e; font-size: 13px; }
+.confirmation-dialog footer { display: flex; grid-column: 1 / -1; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.confirmation-dialog footer button { min-width: 78px; height: 38px; padding: 0 16px; border: 0; border-radius: 19px; background: transparent; color: #0b57d0; font-size: 14px; font-weight: 500; }
+.confirmation-dialog footer button:hover:not(:disabled) { background: #f0f6ff; }
+.confirmation-dialog footer .destructive-button { background: #b3261e; color: #fff; }
+.confirmation-dialog footer .destructive-button:hover:not(:disabled) { background: #8c1d18; }
+.confirmation-dialog footer button:disabled { cursor: wait; opacity: .65; }
 
 .calendar-surface { position: relative; min-width: 0; overflow: hidden; border-radius: 28px 0 0; background: #fff; }
 .sidebar-collapsed .calendar-surface { grid-column: 1; }
@@ -456,6 +472,9 @@ dialog::backdrop { background: rgb(32 33 36 / 18%); }
 .modal-header { display: flex; height: 48px; align-items: center; margin: 0 -24px 12px; padding: 0 8px 0 20px; border-radius: 12px 12px 0 0; background: #f1f3f4; }
 .modal-header h2 { margin: 0; color: #5f6368; font-size: 14px; font-weight: 500; }
 .modal-header .icon-button { margin-left: auto; }
+.modal-header .event-editor-delete { margin-left: auto; color: #b3261e; }
+.modal-header .event-editor-delete + .icon-button { margin-left: 0; }
+.modal-header .event-editor-delete:hover:not(:disabled) { background: #fce8e6; color: #8c1d18; }
 .modal-grip { width: 18px; height: 2px; margin-right: 10px; border-radius: 2px; background: #9aa0a6; }
 .title-field { display: block; margin: 10px 0 14px 40px; }
 .title-field > span { display: none; }
@@ -511,8 +530,7 @@ dialog::backdrop { background: rgb(32 33 36 / 18%); }
 .inline-range-error { display: block; margin: 7px 0 0; color: var(--danger); font-size: 11px; }
 .checkbox-label { display: flex !important; grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px !important; margin-top: 8px; color: #3c4043 !important; font-size: 14px !important; }
 .checkbox-label input { width: 18px; height: 18px; accent-color: var(--blue); }
-.repeat-select { display: flex !important; width: min(390px, 100%); max-width: 100%; grid-column: 1 / -1; align-items: center; gap: 8px !important; margin-top: 6px; }
-.repeat-select .material-icon { flex: 0 0 auto; color: #5f6368; }
+.repeat-select { display: flex !important; width: min(390px, 100%); max-width: 100%; grid-column: 1 / -1; align-items: center; margin-top: 6px; }
 .repeat-select .select-menu { min-width: 0; }
 .repeat-select .select-menu > button { min-height: 38px; border: 0; background: #f1f3f4; }
 .recurrence-dialog-backdrop { display: grid; position: fixed; z-index: 520; inset: 0; place-items: center; padding: 16px; background: rgb(32 33 36 / 32%); }
@@ -773,6 +791,8 @@ dialog::backdrop { background: rgb(32 33 36 / 18%); }
     .editor-date-time-line.all-day.spans-days { grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr); }
     .form-error { margin-left: 32px; }
     .calendar-editor { padding: 0 20px 20px; }
+    .confirmation-dialog { grid-template-columns: 40px minmax(0, 1fr); gap: 0 12px; padding: 20px; }
+    .confirmation-dialog-icon { width: 40px; height: 40px; }
     .calendar-editor-header { height: 58px; }
     .insights-drawer { width: 100vw; max-width: 100vw; }
     .suggestions-drawer { width: 100vw; max-width: 100vw; }

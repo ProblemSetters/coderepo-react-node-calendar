@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { Modal } from "../../shared/components/Modal.jsx";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { formatTime } from "../../shared/utils/date.js";
@@ -9,6 +10,9 @@ import { recurrenceLabel } from "./RepeatSelector.jsx";
 export function EventPreview({ calendar, error = "", event, onClose, onDelete, onEdit, onRespond, responding = false }) {
     const [pendingResponse, setPendingResponse] = useState(null);
     const [responseScope, setResponseScope] = useState("this");
+    const [deleteConfirmation, setDeleteConfirmation] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState("");
     const date = new Date(event.startAt);
     const typeLabels = { event: "Event", task: "Task", outOfOffice: "Out of office", focusTime: "Focus time", workingLocation: "Working location", appointmentSchedule: "Appointment schedule" };
     const guests = event.participantPeople || [];
@@ -20,8 +24,8 @@ export function EventPreview({ calendar, error = "", event, onClose, onDelete, o
         if (recurring) { setPendingResponse(status); setResponseScope("this"); }
         else onRespond(status);
     };
-    return <Modal className="event-preview-modal" onClose={onClose}><article className="event-preview">
-        <div className="preview-actions">{event.editable !== false && <><button className="icon-button" title="Edit event" aria-label="Edit event" onClick={onEdit}><MaterialIcon size={20}>edit</MaterialIcon></button><button className="icon-button" title="Delete event" aria-label="Delete event" onClick={() => { if (window.confirm(`Delete “${event.title}”?`)) onDelete(); }}><MaterialIcon size={20}>delete</MaterialIcon></button></>}<button className="icon-button" title="Close" aria-label="Close" onClick={onClose}><MaterialIcon size={22}>close</MaterialIcon></button></div>
+    return <><Modal className="event-preview-modal" onClose={onClose}><article className="event-preview">
+        <div className="preview-actions">{event.editable !== false && <><button className="icon-button" title="Edit event" aria-label="Edit event" onClick={onEdit}><MaterialIcon size={20}>edit</MaterialIcon></button><button className="icon-button" title="Delete event" aria-label="Delete event" onClick={() => { setDeleteError(""); setDeleteConfirmation(true); }}><MaterialIcon size={20}>delete</MaterialIcon></button></>}<button className="icon-button" title="Close" aria-label="Close" onClick={onClose}><MaterialIcon size={22}>close</MaterialIcon></button></div>
         <div className="preview-title"><i style={{ backgroundColor: event.color || calendar?.color }} /><h2>{event.title}</h2></div>
         <div className="preview-detail"><MaterialIcon>schedule</MaterialIcon><span>{date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}<small>{event.allDay ? "All day" : `${formatTime(event.startAt)} – ${formatTime(event.endAt)}`}</small></span></div>
         <div className="preview-detail"><MaterialIcon>{event.type === "outOfOffice" ? "event_busy" : "event"}</MaterialIcon><span>{typeLabels[event.type || "event"]}<small>{calendar?.name || event.calendarName || "Calendar"}</small></span></div>
@@ -41,7 +45,7 @@ export function EventPreview({ calendar, error = "", event, onClose, onDelete, o
         </div></div>}
         {event.location && <div className="preview-detail"><MaterialIcon>location_on</MaterialIcon><span>{event.location}</span></div>}
         {event.description && <div className="preview-detail"><MaterialIcon>subject</MaterialIcon><span>{event.description}</span></div>}
-        {error && <p className="preview-error" role="alert">{error}</p>}
+        {(error || deleteError) && <p className="preview-error" role="alert">{deleteError || error}</p>}
         {pendingResponse && <div className="recurrence-dialog-backdrop recurrence-scope-backdrop" role="presentation"><section aria-labelledby="recurrence-scope-title" aria-modal="true" className="recurrence-dialog recurrence-scope-dialog" role="dialog"><h3 id="recurrence-scope-title">RSVP to recurring event</h3><fieldset><legend className="sr-only">Apply response to</legend>{[["this", "This event"], ["following", "This and following events"], ["all", "All events"]].map(([value, label]) => <label key={value}><input type="radio" name="response-scope" checked={responseScope === value} onChange={() => setResponseScope(value)} /><span>{label}</span></label>)}</fieldset><div className="recurrence-dialog-actions"><button type="button" disabled={responding} onClick={() => setPendingResponse(null)}>Cancel</button><button type="button" className="primary-button" disabled={responding} onClick={async () => { const saved = await onRespond(pendingResponse, { scope: responseScope, occurrenceStartAt: event.occurrenceStartAt || event.startAt }); if (saved !== false) setPendingResponse(null); }}>{responding ? "Saving…" : "OK"}</button></div></section></div>}
-    </article></Modal>;
+    </article></Modal>{deleteConfirmation && <ConfirmationDialog busy={deleting} confirmLabel="Delete" destructive error={deleteError} message={`“${event.title}” will be permanently removed from this calendar.`} onCancel={() => { setDeleteConfirmation(false); setDeleteError(""); }} onConfirm={async () => { try { setDeleting(true); setDeleteError(""); await onDelete(); } catch (requestError) { setDeleteError(requestError.message || "The event could not be deleted."); setDeleting(false); } }} title="Delete event?" />}</>;
 }

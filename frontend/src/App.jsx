@@ -96,7 +96,7 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
     const createEvent = (startAt, type = "event") => setEditorDraft({ cursor, type, ...(startAt ? { startAt } : {}) });
     const selectEvent = (event) => { setError(""); setSelectedEvent(event); };
     const saveEvent = async (payload) => { if (editorDraft?._id) await eventApi.update(editorDraft._id, payload); else await eventApi.create(payload); setEditorDraft(null); setSelectedEvent(null); setError(""); await Promise.all([loadEvents(), loadInsights()]); setAvailabilityRevision((revision) => revision + 1); };
-    const deleteEvent = async () => { try { await eventApi.remove(selectedEvent._id); setSelectedEvent(null); setError(""); await Promise.all([loadEvents(), loadInsights()]); } catch (requestError) { setError(requestError.message); } };
+    const deleteEvent = async (event) => { await eventApi.remove(event._id); setEditorDraft(null); setSelectedEvent(null); setError(""); await Promise.all([loadEvents(), loadInsights()]); };
     const respondToEvent = async (status, options = {}) => {
         if (!selectedEvent || selectedEvent.responseStatus === status && !Object.keys(options).length) return false;
         try {
@@ -116,7 +116,7 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
     const updateCalendar = async (id, values) => { const updated = await calendarApi.update(id, values); setCalendars((items) => items.map((item) => item._id === id ? updated : item)); setError(""); return updated; };
     const createCalendar = async (values) => { const created = await calendarApi.create(values); setCalendars((items) => [...items, created]); setError(""); return created; };
     const displayOnlyCalendar = async (id) => { const updated = await calendarApi.displayOnly(id); setCalendars(updated); setError(""); return updated; };
-    const deleteCalendar = async (calendar) => { if (!window.confirm(`Delete “${calendar.name}”? Empty calendars only can be deleted.`)) return false; try { await calendarApi.remove(calendar._id); setCalendars((items) => items.filter((item) => item._id !== calendar._id)); setError(""); return true; } catch (requestError) { setError(requestError.message); return false; } };
+    const deleteCalendar = async (calendar) => { await calendarApi.remove(calendar._id); setCalendars((items) => items.filter((item) => item._id !== calendar._id)); setError(""); return true; };
     const selectMiniDate = (date) => { setCursor(date); setMiniMonth(startOfMonth(date)); };
     const openSearch = () => { setSearchMode(true); setSearchPanelOpen(false); };
     const closeSearch = () => { setSearchMode(false); setSearchPanelOpen(false); setSearchCriteria(null); setSearchResults([]); setSearchStatus({ loading: false, error: "" }); };
@@ -158,8 +158,8 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
             {searchCriteria !== null ? <SearchResults calendars={calendars} criteria={searchCriteria} error={searchStatus.error} loading={searchStatus.loading} onClear={() => { setSearchCriteria(null); setSearchPanelOpen(true); }} onEventSelect={selectEvent} results={searchResults} /> : renderView()}
         </main>
         {searchMode && <AdvancedSearchPanel expanded={searchPanelOpen} initialValues={searchCriteria} onDismiss={closeSearch} onExpandedChange={setSearchPanelOpen} onSearch={executeSearch} />}
-        {editorDraft && <EventEditor calendars={calendars} draft={editorDraft} onClose={() => setEditorDraft(null)} onSave={saveEvent} />}
-        {selectedEvent && !editorDraft && <EventPreview calendar={calendars.find((calendar) => calendar._id === String(selectedEvent.calendarId))} error={error} event={selectedEvent} onClose={() => { setSelectedEvent(null); setError(""); }} onDelete={deleteEvent} onEdit={() => { setEditorDraft(selectedEvent); setSelectedEvent(null); setError(""); }} onRespond={respondToEvent} responding={responsePending} />}
+        {editorDraft && <EventEditor calendars={calendars} draft={editorDraft} onClose={() => setEditorDraft(null)} onDelete={() => deleteEvent(editorDraft)} onSave={saveEvent} />}
+        {selectedEvent && !editorDraft && <EventPreview calendar={calendars.find((calendar) => calendar._id === String(selectedEvent.calendarId))} error={error} event={selectedEvent} onClose={() => { setSelectedEvent(null); setError(""); }} onDelete={() => deleteEvent(selectedEvent)} onEdit={() => { setEditorDraft(selectedEvent); setSelectedEvent(null); setError(""); }} onRespond={respondToEvent} responding={responsePending} />}
         {insightsOpen && <TimeInsightsDrawer cursor={cursor} insights={insights} loading={insightsStatus.loading} onClose={() => setInsightsOpen(false)} onScheduleFocus={() => { setInsightsOpen(false); createEvent(undefined, "focusTime"); }} />}
         {suggestionPeople && <SuggestedTimesDrawer cursor={cursor} people={suggestionPeople} onChoose={chooseSuggestedTime} onClose={() => setSuggestionPeople(null)} />}
     </div>;

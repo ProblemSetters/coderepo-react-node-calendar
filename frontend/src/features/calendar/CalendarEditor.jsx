@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { Modal } from "../../shared/components/Modal.jsx";
 import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
@@ -17,6 +18,8 @@ export function CalendarEditor({ calendar, onClose, onDelete, onSave, usedColors
     const [timeZone, setTimeZone] = useState(calendar?.timeZone || localTimeZone);
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const close = () => { if (!saving) onClose(); };
     const submit = async (event) => {
@@ -34,8 +37,19 @@ export function CalendarEditor({ calendar, onClose, onDelete, onSave, usedColors
             setSaving(false);
         }
     };
+    const remove = async () => {
+        try {
+            setDeleting(true);
+            setError("");
+            await onDelete(calendar);
+        } catch (requestError) {
+            setError(requestError.message || "The calendar could not be deleted.");
+            setDeleteConfirmation(false);
+            setDeleting(false);
+        }
+    };
 
-    return <Modal className="calendar-editor-modal" onClose={close}>
+    return <><Modal className="calendar-editor-modal" onClose={close}>
         <form className="calendar-editor" onSubmit={submit}>
             <header className="calendar-editor-header">
                 <div><MaterialIcon size={24}>event</MaterialIcon><h2>{editing ? "Calendar settings" : "Create new calendar"}</h2></div>
@@ -65,10 +79,10 @@ export function CalendarEditor({ calendar, onClose, onDelete, onSave, usedColors
             </fieldset>
             {error && <p className="calendar-editor-error" role="alert"><MaterialIcon size={18}>error</MaterialIcon><span>{error}</span></p>}
             <footer className="calendar-editor-actions">
-                {editing && !calendar.isPrimary && <button className="calendar-delete-action" type="button" onClick={() => onDelete(calendar)} disabled={saving}>Delete</button>}
+                {editing && !calendar.isPrimary && <button className="calendar-delete-action" type="button" onClick={() => setDeleteConfirmation(true)} disabled={saving || deleting}><MaterialIcon size={18}>delete</MaterialIcon><span>Delete</span></button>}
                 <button type="button" onClick={close} disabled={saving}>Cancel</button>
                 <button className="primary-button" data-testid="create-calendar-submit" disabled={saving || !name.trim()}>{saving ? (editing ? "Saving…" : "Creating…") : (editing ? "Save" : "Create calendar")}</button>
             </footer>
         </form>
-    </Modal>;
+    </Modal>{deleteConfirmation && <ConfirmationDialog busy={deleting} confirmLabel="Delete" destructive message={`“${calendar.name}” will be permanently removed. Only empty calendars can be deleted.`} onCancel={() => setDeleteConfirmation(false)} onConfirm={remove} title="Delete calendar?" />}</>;
 }

@@ -211,9 +211,11 @@ describe("application orchestration", () => {
         render(<App />);
         await userEvent.click(await screen.findByRole("button", { name: /Design review/ }));
         await userEvent.click(screen.getByRole("button", { name: "Delete event" }));
+        expect(screen.getByRole("heading", { name: "Delete event?" })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Delete", exact: true }));
         const alerts = await screen.findAllByRole("alert");
         expect(alerts.some((alert) => alert.textContent.includes("Delete could not be completed"))).toBe(true);
-        expect(screen.getByRole("dialog")).toBeInTheDocument();
+        expect(screen.getByRole("dialog", { name: "Delete event?" })).toBeInTheDocument();
     });
 
     test("replaces the event preview with the editor and closes the complete flow after save", async () => {
@@ -226,6 +228,7 @@ describe("application orchestration", () => {
         expect(screen.queryByRole("button", { name: "Edit event" })).not.toBeInTheDocument();
         expect(screen.getAllByRole("dialog")).toHaveLength(1);
         expect(screen.getByTestId("event-title-input")).toHaveValue("Design review");
+        expect(screen.getByRole("button", { name: "Delete event" })).toBeInTheDocument();
 
         await userEvent.click(screen.getByTestId("save-event-button"));
         await waitFor(() => expect(mocks.eventUpdate).toHaveBeenCalledWith("event-1", expect.objectContaining({ title: "Design review" })));
