@@ -7,7 +7,7 @@ import { CalendarEditor } from "../features/calendar/CalendarEditor.jsx";
 import { MiniCalendar } from "../features/calendar/MiniCalendar.jsx";
 import { MonthView } from "../features/calendar/MonthView.jsx";
 import { TimeGrid, timeGridLayers } from "../features/calendar/TimeGrid.jsx";
-import { getLayeredEventGeometry, layoutTimedEvents } from "../features/calendar/event-layout.js";
+import { getEventColumnGeometry, layoutTimedEvents } from "../features/calendar/event-layout.js";
 import { calendarColors, foregroundForColor, nextAvailableCalendarColor, overlapColor } from "../features/calendar/calendar-colors.js";
 import { EventEditor } from "../features/events/EventEditor.jsx";
 import { EventPreview } from "../features/events/EventPreview.jsx";
@@ -136,8 +136,11 @@ describe("event behavior", () => {
         const layout = layoutTimedEvents(events);
         expect(layout.map((item) => item.column)).toEqual([0, 1]);
         expect(layout.every((item) => item.columns === 2)).toBe(true);
-        expect(getLayeredEventGeometry(0, 2)).toMatchObject({ left: 0, width: 82 });
-        expect(getLayeredEventGeometry(1, 2)).toMatchObject({ left: 48, width: 52 });
+        const firstColumn = getEventColumnGeometry(0, 2);
+        const secondColumn = getEventColumnGeometry(1, 2);
+        expect(firstColumn).toMatchObject({ left: 0, width: 50, zIndex: 2 });
+        expect(secondColumn).toMatchObject({ left: 50, width: 50, zIndex: 2 });
+        expect(firstColumn.left + firstColumn.width).toBeLessThanOrEqual(secondColumn.left);
         expect(overlapColor("#1a73e8", 0, 2)).toBe("#1a73e8");
         expect(overlapColor("#1a73e8", 1, 2)).toBe("#1869d3");
     });
@@ -158,10 +161,34 @@ describe("event behavior", () => {
         const task = screen.getByRole("button", { name: /Visible task/ });
         expect(first).toHaveStyle({ top: "578px", height: "60px" });
         expect(second).toHaveAttribute("data-overlap", "true");
+        expect(second).toHaveAttribute("data-overlap-edge", "start");
         expect(overlapping).toHaveAttribute("data-overlap-column", "1");
+        expect(overlapping).toHaveAttribute("data-overlap-edge", "end");
+        expect(second).toHaveStyle({ left: "0%", width: "calc(50% - 12px)", zIndex: "2" });
+        expect(overlapping).toHaveStyle({ left: "calc(50% - 12px)", width: "calc(50% - 12px)", zIndex: "2" });
+        expect(second.style.getPropertyValue("--event-base-layer")).toBe("2");
         expect(second.style.backgroundColor).not.toBe(overlapping.style.backgroundColor);
+        expect(second.style.borderColor).toBe(second.style.backgroundColor);
+        expect(overlapping.style.borderColor).toBe(overlapping.style.backgroundColor);
         expect(task).toHaveTextContent("Visible task");
         expect(task).toHaveAttribute("data-item-type", "task");
+    });
+
+    test("partitions any simultaneous event count across the complete row", () => {
+        const simultaneous = Array.from({ length: 5 }, (_, index) => ({
+            calendarId: "calendar-1", _id: `parallel-${index}`, title: `Parallel ${index + 1}`, type: "event", allDay: false,
+            startAt: "2026-08-27T15:30:00", endAt: "2026-08-27T16:30:00",
+        }));
+        const { container } = render(<TimeGrid calendars={[{ _id: "calendar-1", color: "#1a73e8" }]} cursor={new Date(2026, 7, 27)} days={1} events={simultaneous} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        const cards = [...container.querySelectorAll('.timed-event[data-overlap-count="5"]')];
+        expect(cards).toHaveLength(5);
+        cards.forEach((card, index) => {
+            const inset = Number((index * 4.8).toFixed(4));
+            expect(card).toHaveStyle({ left: index === 0 ? "0%" : `calc(${index * 20}% - ${inset}px)`, width: "calc(20% - 4.8px)", zIndex: "2" });
+            expect(card).toHaveAttribute("data-crowded", "true");
+            expect(card).toHaveAttribute("data-overlap-edge", index === 0 ? "start" : index === cards.length - 1 ? "end" : "middle");
+            expect(card).toHaveAccessibleName(new RegExp(`Parallel ${index + 1}.*3:30 PM.*4:30 PM`));
+        });
     });
 
     test("preserves input and prevents an invalid event range", async () => {

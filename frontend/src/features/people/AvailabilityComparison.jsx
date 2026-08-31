@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { formatTime, formatTimeZoneOffset, startOfDay, toDateInput } from "../../shared/utils/date.js";
 import { identityInitials } from "../../shared/utils/identity.js";
-import { getLayeredEventGeometry, layoutTimedEvents } from "../calendar/event-layout.js";
+import { getEventColumnGeometry, layoutTimedEvents } from "../calendar/event-layout.js";
 import { foregroundForColor } from "../calendar/calendar-colors.js";
 import { availabilityApi } from "./availability.api.js";
 
@@ -18,7 +18,7 @@ function BusyBlocks({ blocks, color, onSelect, person }) {
         const actualDurationMinutes = Math.max(1, (end - start) / 60000);
         const duration = Math.max(20, actualDurationMinutes);
         const density = actualDurationMinutes <= 30 ? "micro" : actualDurationMinutes < 60 ? "compact" : "comfortable";
-        const geometry = getLayeredEventGeometry(column, columns);
+        const geometry = getEventColumnGeometry(column, columns);
         const background = event.color || color;
         return <button type="button" className="comparison-busy" data-density={density} data-item-type={event.type || "event"} key={event._id} style={{ backgroundColor: background, color: foregroundForColor(background), top: `${startMinute / 60 * hourHeight}px`, height: `${duration / 60 * hourHeight}px`, left: `${geometry.left}%`, width: `calc(${geometry.width}% - 6px)`, zIndex: geometry.zIndex + 2 }} title={`${event.title}: ${formatTime(event.startAt)} – ${formatTime(event.endAt)}`} aria-label={`${event.title || "Busy"}, ${formatTime(event.startAt)} to ${formatTime(event.endAt)}, ${person.name}`} onClick={(clickEvent) => { clickEvent.stopPropagation(); onSelect(event, person, color); }}>
             {event.type === "outOfOffice" && <MaterialIcon className="out-of-office-icon" size={16}>event_busy</MaterialIcon>}<strong>{event.title || "Busy"}</strong><span>{formatTime(event.startAt)} – {formatTime(event.endAt)}</span>

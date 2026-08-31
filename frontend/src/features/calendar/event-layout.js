@@ -27,15 +27,8 @@ export function layoutTimedEvents(events) {
     });
 }
 
-export function getLayeredEventGeometry(column, columns) {
-    if (columns <= 1) return { left: 0, width: 100, zIndex: 2 };
-    const step = columns === 2 ? 48 : Math.min(28, 68 / (columns - 1));
-    const remaining = columns - column - 1;
-    const rightReserve = remaining * (columns === 2 ? 18 : 7);
-    const left = column * step;
-    return {
-        left,
-        width: Math.max(28, 100 - left - rightReserve),
-        zIndex: 2 + column,
-    };
+export function getEventColumnGeometry(column, columns) {
+    const columnCount = Math.max(1, columns);
+    const width = 100 / columnCount;
+    return { left: column * width, width, zIndex: 2 };
 }

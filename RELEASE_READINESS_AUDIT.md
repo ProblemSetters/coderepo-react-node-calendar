@@ -11,12 +11,12 @@ This is the authoritative implementation, verification, backlog, and QuickBites-
 | Change set | Current UI, recurrence, reload, dependency, test, and audit improvements are verified and ready for commit/push |
 | Current-scope confidence | **High** for the scenarios covered below |
 | Release/freeze decision | **Not ready to freeze as a HackerRank assessment yet** |
-| Frontend tests | **111/111 passed** in 5 suites |
+| Frontend tests | **112/112 passed** in 5 suites |
 | Backend tests | **54/54 passed** in 4 suites |
-| Total automated tests | **165/165 passed** |
-| Frontend coverage | 84.05% statements, 76.68% branches, 84.56% functions, 91.94% lines |
+| Total automated tests | **166/166 passed** |
+| Frontend coverage | 84.07% statements, 76.87% branches, 84.58% functions, 91.95% lines |
 | Backend coverage | 91.42% statements, 77.52% branches, 91.79% functions, 93.57% lines |
-| Production build | Passed with Vite 8.2.2; 61 modules, 303.17 kB JavaScript and 85.31 kB CSS before gzip |
+| Production build | Passed with Vite 8.2.2; 61 modules, 303.53 kB JavaScript and 85.97 kB CSS before gzip |
 | Production dependency audit | Passed; `bun audit --production` reports **0 vulnerabilities** |
 | Repository-level test command | Passed end to end |
 | Static diff check | Passed |
@@ -43,6 +43,7 @@ No finite test suite can prove every possible string, date, timezone, browser, d
 - Corrected recurrence grammar so one unit renders `day`, `week`, `month`, `year`, or `occurrence`, while larger values render their plural forms.
 - Added an immediate application boot surface and atomic session/profile restoration so an authenticated reload never flashes the login or profile chooser.
 - Kept the red current-time marker above normal, hovered, and keyboard-focused event cards while preserving pointer access to the underlying event.
+- Replaced visually layered overlap geometry with Google-style equal-width event columns inside the same right-inset boundary used by a normal event. Concurrent cards use rounded outer corners and square shared edges, meet without an artificial internal gutter, never change collision stacking on hover or focus, compact dense-group content, and reuse the same scalable geometry in the shared comparison view.
 - Upgraded Vite/Vitest, Mongoose, and Jest JUnit dependencies to patched compatible versions and regenerated `bun.lock`; the production dependency audit is clean.
 - Removed the unneeded leading recurrence glyph from the editor while retaining the dropdown arrow and recurrence icon in event details.
 - Removed stale implementation comments and rechecked the application for unfinished markers, old identity data, default native selects, undeclared workspace dependencies, and whitespace errors.
@@ -236,9 +237,9 @@ Status: **Functionally strong; authentication, profile authorization, event owne
 | Check | Result |
 | --- | --- |
 | `npm test` at the repository root | Passed: frontend then backend |
-| Frontend `npm test` | 5 suites, 111 tests passed |
+| Frontend `npm test` | 5 suites, 112 tests passed |
 | Backend `npm test` | 4 suites, 54 tests passed |
-| Frontend `npm run test:coverage` | Passed; 84.05% statements, 76.68% branches, 84.56% functions, 91.94% lines |
+| Frontend `npm run test:coverage` | Passed; 84.07% statements, 76.87% branches, 84.58% functions, 91.95% lines |
 | Backend `npm run test:coverage` | Passed; 91.42% statements, 77.52% branches, 91.79% functions, 93.57% lines |
 | Frontend `npm run build` | Passed with Vite 8.2.2; 61 modules transformed |
 | `bun audit --production` | Passed; no known vulnerabilities found |
@@ -287,6 +288,7 @@ Fresh checks on August 31, 2026:
 - At 390×844, the event editor measured 358 pixels wide inside the viewport; `Add guests` remained present, filtered `nova` to the expected HackerRank profile, and used a bounded `overflow-y: auto` result list.
 - Closing the modified test draft used the in-app **Discard changes?** flow and left no dialog residue.
 - Live hover QA confirmed the event layer changes from 2 to 50 while the current-time marker remains at 60; the marker retains `pointer-events: none`.
+- Live seeded-overlap QA measured two concurrent cards at 459.5 pixels each, sharing the exact 796.5-pixel boundary with no gap and ending at the standard 24-pixel Day-view right inset. Their outside corners remain rounded while the shared corners are square; hovering the first leaves both collision layers at 2 while the second remains fully visible and retains its complete center hit target. An automated five-event collision verifies equal fifths, correct start/middle/end edge treatment, and complete accessible labels.
 - Desktop 1280×720 had `body.scrollWidth === document.scrollWidth === innerWidth`, with no open-dialog residue after the tested flow.
 - The owned-event preview exposed visible Edit, Delete, and Close SVG paths; Edit exposed its own visible Delete action.
 - The repeat control had no leading decorative icon after the requested cleanup; only its dropdown affordance remained.
