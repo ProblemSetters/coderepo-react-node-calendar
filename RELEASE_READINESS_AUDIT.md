@@ -1,6 +1,6 @@
 # Calendar release-readiness audit
 
-This is the authoritative implementation, verification, backlog, and QuickBites-alignment report for the Calendar repository as audited on **August 30, 2026**.
+This is the authoritative implementation, verification, backlog, and QuickBites-alignment report for the Calendar repository as audited on **August 31, 2026**.
 
 ## Audit summary
 
@@ -8,15 +8,16 @@ This is the authoritative implementation, verification, backlog, and QuickBites-
 | --- | --- |
 | Repository | `ProblemSetters/coderepo-react-node-calendar` |
 | Branch | `solution-prod`, tracking `origin/solution-prod` |
-| Working tree | Current UI/dialog/icon/audit improvements are verified but not yet committed or pushed |
+| Change set | Current UI, recurrence, reload, dependency, test, and audit improvements are verified and ready for commit/push |
 | Current-scope confidence | **High** for the scenarios covered below |
 | Release/freeze decision | **Not ready to freeze as a HackerRank assessment yet** |
-| Frontend tests | **105/105 passed** in 5 suites |
+| Frontend tests | **110/110 passed** in 5 suites |
 | Backend tests | **54/54 passed** in 4 suites |
-| Total automated tests | **159/159 passed** |
-| Frontend coverage | 83.56% statements, 74.86% branches, 82.24% functions, 91.98% lines |
+| Total automated tests | **164/164 passed** |
+| Frontend coverage | 84.04% statements, 76.74% branches, 84.56% functions, 91.93% lines |
 | Backend coverage | 91.42% statements, 77.52% branches, 91.79% functions, 93.57% lines |
-| Production build | Passed; 60 modules, 299.89 kB JavaScript and 79.49 kB CSS before gzip |
+| Production build | Passed with Vite 8.2.2; 61 modules, 303.17 kB JavaScript and 85.31 kB CSS before gzip |
+| Production dependency audit | Passed; `bun audit --production` reports **0 vulnerabilities** |
 | Repository-level test command | Passed end to end |
 | Static diff check | Passed |
 | Browser QA | Passed for the live scenarios documented below |
@@ -38,6 +39,10 @@ No finite test suite can prove every possible string, date, timezone, browser, d
 - Reverified the recently corrected event-editor guest search/scroll panel and main header search layering against the existing live-browser scenarios.
 - Replaced browser-owned confirmation prompts with accessible, responsive in-app dialogs for event deletion, calendar deletion, and unsaved-change dismissal.
 - Completed the shared SVG icon registry for every icon referenced by the application and added an automated non-empty-path guard plus a visible fallback for future naming mistakes.
+- Rebuilt custom recurrence as an application-owned Google-style dialog with interval/frequency controls, weekly day selection, monthly mode, Never/On/After endings, an in-app date picker, focus containment, and responsive behavior.
+- Corrected recurrence grammar so one unit renders `day`, `week`, `month`, `year`, or `occurrence`, while larger values render their plural forms.
+- Added an immediate application boot surface and atomic session/profile restoration so an authenticated reload never flashes the login or profile chooser.
+- Upgraded Vite/Vitest, Mongoose, and Jest JUnit dependencies to patched compatible versions and regenerated `bun.lock`; the production dependency audit is clean.
 - Removed the unneeded leading recurrence glyph from the editor while retaining the dropdown arrow and recurrence icon in event details.
 - Removed stale implementation comments and rechecked the application for unfinished markers, old identity data, default native selects, undeclared workspace dependencies, and whitespace errors.
 
@@ -100,6 +105,9 @@ Status: **Complete for the documented views.**
 - End-time choices across the next 24 hours with duration labels.
 - Editable valid custom times in 12-hour and 24-hour formats.
 - Same-day, midnight rollover, cross-day, and all-day normalization.
+- Preset daily, weekly, monthly, annual, and weekday recurrence choices.
+- Custom recurrence by interval and day/week/month/year frequency, weekly day selection, monthly day/ordinal mode, and Never/On/After endings.
+- In-app recurrence end-date calendar with month navigation, disabled pre-start dates, focus containment, Escape/backdrop dismissal, and singular/plural summaries.
 - Calendar, location, description, searchable guests, and event color fields.
 - Required title, positive chronology, field length, valid calendar, color, and identifier validation.
 - Save progress and inline mutation errors that preserve entered values.
@@ -227,11 +235,12 @@ Status: **Functionally strong; authentication, profile authorization, event owne
 | Check | Result |
 | --- | --- |
 | `npm test` at the repository root | Passed: frontend then backend |
-| Frontend `npm test` | 5 suites, 105 tests passed |
+| Frontend `npm test` | 5 suites, 110 tests passed |
 | Backend `npm test` | 4 suites, 54 tests passed |
-| Frontend `npm run test:coverage` | Passed; 83.56% statements, 74.86% branches, 82.24% functions, 91.98% lines |
+| Frontend `npm run test:coverage` | Passed; 84.04% statements, 76.74% branches, 84.56% functions, 91.93% lines |
 | Backend `npm run test:coverage` | Passed; 91.42% statements, 77.52% branches, 91.79% functions, 93.57% lines |
-| Frontend `npm run build` | Passed; 60 modules transformed |
+| Frontend `npm run build` | Passed with Vite 8.2.2; 61 modules transformed |
+| `bun audit --production` | Passed; no known vulnerabilities found |
 | `git diff --check` | Passed |
 | `npm ls --workspaces --depth=0` | Passed; declared workspace packages resolve |
 | Live authentication/API smoke | Health, login, session, and profiles returned `200`; five profiles were visible |
@@ -265,9 +274,17 @@ The fresh read-only seeded-data smoke covered a 59-day window and returned River
 
 ### Live browser verification
 
-Fresh checks on August 30, 2026:
+Fresh checks on August 31, 2026:
 
 - The running app restored the authenticated River workspace and loaded three visible calendars plus populated seeded events.
+- A fresh browser session completed workspace login, exposed all five neutral profiles, and selected River successfully.
+- An authenticated hard reload restored the workspace directly with no login/profile-picker residue, no lingering boot surface, no overflow, and no runtime warnings or errors.
+- Day, Week, and Month navigation remained functional; Month rendered all 42 cells and no document overflow.
+- Month `+N more` opened a compact 292-pixel in-app day dialog, kept Month selected, and listed every item for the chosen day.
+- Main search retained its visible field and returned grouped past/upcoming matches for `review` without overflow or alerts.
+- Custom recurrence rendered `week`/`occurrence` at a count of one and `weeks`/`occurrences` after incrementing, using only custom application controls.
+- At 390×844, the event editor measured 358 pixels wide inside the viewport; `Add guests` remained present, filtered `nova` to the expected HackerRank profile, and used a bounded `overflow-y: auto` result list.
+- Closing the modified test draft used the in-app **Discard changes?** flow and left no dialog residue.
 - Desktop 1280×720 had `body.scrollWidth === document.scrollWidth === innerWidth`, with no open-dialog residue after the tested flow.
 - The owned-event preview exposed visible Edit, Delete, and Close SVG paths; Edit exposed its own visible Delete action.
 - The repeat control had no leading decorative icon after the requested cleanup; only its dropdown affordance remained.

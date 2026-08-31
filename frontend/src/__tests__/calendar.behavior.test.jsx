@@ -432,6 +432,52 @@ describe("event behavior", () => {
         expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recurrence: expect.objectContaining({ frequency: "weekly", interval: 1, daysOfWeek: [4] }) }));
     });
 
+    test("builds and saves a custom weekly recurrence with an occurrence limit", async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T10:00:00"), title: "Custom planning" }} onClose={vi.fn()} onSave={onSave} />);
+        await userEvent.click(screen.getByRole("combobox", { name: "Repeat" }));
+        await userEvent.click(screen.getByRole("option", { name: "Custom…" }));
+        expect(screen.getByRole("dialog", { name: "Custom recurrence" })).toBeInTheDocument();
+        expect(screen.getByRole("combobox", { name: "Repeat frequency" })).toHaveTextContent("week");
+        await userEvent.click(screen.getByRole("button", { name: "Increase repeat interval" }));
+        expect(screen.getByRole("combobox", { name: "Repeat frequency" })).toHaveTextContent("weeks");
+        await userEvent.click(screen.getByRole("checkbox", { name: "M" }));
+        await userEvent.click(screen.getByRole("radio", { name: /^After/ }));
+        const occurrences = screen.getByRole("textbox", { name: "Number of occurrences" });
+        await userEvent.clear(occurrences);
+        await userEvent.type(occurrences, "1");
+        expect(screen.getByText("occurrence", { exact: true })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Increase number of occurrences" }));
+        expect(screen.getByText("occurrences", { exact: true })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        expect(screen.getByRole("combobox", { name: "Repeat" })).toHaveTextContent("Every 2 weeks on Monday, Thursday");
+        await userEvent.click(screen.getByTestId("save-event-button"));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recurrence: expect.objectContaining({ frequency: "weekly", interval: 2, daysOfWeek: [1, 4], endType: "count", count: 2, until: null }) }));
+    });
+
+    test("uses the in-app calendar for a custom recurrence end date", async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T10:00:00"), title: "Dated series" }} onClose={vi.fn()} onSave={onSave} />);
+        await userEvent.click(screen.getByRole("combobox", { name: "Repeat" }));
+        await userEvent.click(screen.getByRole("option", { name: "Custom…" }));
+        await userEvent.click(screen.getByRole("radio", { name: /^On/ }));
+        await userEvent.click(screen.getByRole("button", { name: /Recurrence end date/ }));
+        expect(screen.getByRole("dialog", { name: "Choose recurrence end date" })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Friday, August 28, 2026" }));
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await userEvent.click(screen.getByTestId("save-event-button"));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ recurrence: expect.objectContaining({ endType: "until", until: "2026-08-28", count: null }) }));
+    });
+
+    test("prevents a weekly custom recurrence with no selected weekdays", async () => {
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T10:00:00"), title: "Invalid series" }} onClose={vi.fn()} onSave={vi.fn()} />);
+        await userEvent.click(screen.getByRole("combobox", { name: "Repeat" }));
+        await userEvent.click(screen.getByRole("option", { name: "Custom…" }));
+        await userEvent.click(screen.getAllByRole("checkbox", { name: "T" }).find((checkbox) => checkbox.checked));
+        expect(screen.getByRole("alert")).toHaveTextContent("Choose at least one day.");
+        expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+    });
+
     test("marks declined invitations consistently across day and month views", () => {
         const invitation = { _id: "event-declined", calendarId: "calendar-1", title: "Declined meeting", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false, responseStatus: "declined" };
         const calendars = [{ _id: "calendar-1", color: "#1a73e8" }];

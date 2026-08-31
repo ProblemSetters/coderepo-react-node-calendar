@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -95,6 +95,36 @@ describe("application orchestration", () => {
         expect(mocks.authLogin).toHaveBeenCalledWith("calendar@hackerrank.com", "password123");
         expect(await screen.findByRole("heading", { name: "Who’s using Calendar?" })).toBeInTheDocument();
         expect(localStorage.getItem("calendar-session-token")).toBe("workspace-token");
+    });
+
+    test("restores a saved workspace without flashing login or profile screens", async () => {
+        let finishSession;
+        let finishProfiles;
+        mocks.authSession.mockReturnValue(new Promise((resolve) => { finishSession = resolve; }));
+        mocks.profileList.mockReturnValue(new Promise((resolve) => { finishProfiles = resolve; }));
+        render(<App />);
+        expect(screen.getByRole("status", { name: "Opening Calendar" })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Welcome to Calendar" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Who’s using Calendar?" })).not.toBeInTheDocument();
+
+        await act(async () => { finishSession({ account: { _id: "account-1", name: "Calendar assessment", email: "calendar@hackerrank.com" } }); });
+        await waitFor(() => expect(mocks.profileList).toHaveBeenCalledTimes(1));
+        expect(screen.getByRole("status", { name: "Opening Calendar" })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Who’s using Calendar?" })).not.toBeInTheDocument();
+
+        await act(async () => { finishProfiles([activeProfile, participant]); });
+        expect(await screen.findByRole("button", { name: /Design review/ })).toBeInTheDocument();
+        expect(screen.queryByRole("status", { name: "Opening Calendar" })).not.toBeInTheDocument();
+    });
+
+    test("keeps a calendar-shaped loading surface while workspace data hydrates", async () => {
+        let finishCalendars;
+        mocks.calendarList.mockReturnValue(new Promise((resolve) => { finishCalendars = resolve; }));
+        render(<App />);
+        expect(await screen.findByRole("status", { name: "Loading calendar" })).toBeInTheDocument();
+        expect(screen.queryByText("Loading calendar…")).not.toBeInTheDocument();
+        await act(async () => { finishCalendars(calendars); });
+        expect(await screen.findByRole("button", { name: /Design review/ })).toBeInTheDocument();
     });
 
     test("keeps the login available after invalid credentials", async () => {

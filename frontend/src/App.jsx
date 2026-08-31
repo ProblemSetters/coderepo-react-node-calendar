@@ -20,6 +20,21 @@ import { WorkspaceLogin } from "./features/auth/WorkspaceLogin.jsx";
 import { hasProfileToken, hasSessionToken, setProfileToken, setSessionToken } from "./shared/api/client.js";
 import { addDays, getViewRange, startOfMonth } from "./shared/utils/date.js";
 
+function AppBootScreen() {
+    return <main className="app-boot" aria-label="Opening Calendar" role="status">
+        <div className="app-boot-brand"><span className="brand-date"><span className="brand-binding" />31</span><strong>Calendar</strong></div>
+        <div className="app-boot-progress" aria-hidden="true"><span /></div>
+    </main>;
+}
+
+function CalendarLoadingState({ view }) {
+    const columns = view === "day" ? 1 : 7;
+    return <div className={`calendar-loading-state ${view}`} aria-label="Loading calendar" role="status">
+        <div className="calendar-loading-header">{Array.from({ length: columns }, (_, index) => <span key={index} />)}</div>
+        <div className="calendar-loading-grid" />
+    </div>;
+}
+
 export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) {
     const [cursor, setCursor] = useState(new Date());
     const [view, setViewState] = useState(() => {
@@ -34,6 +49,7 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
     const [miniMonth, setMiniMonth] = useState(startOfMonth(new Date()));
     const [calendars, setCalendars] = useState([]);
     const [events, setEvents] = useState([]);
+    const [calendarsLoaded, setCalendarsLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [editorDraft, setEditorDraft] = useState(null);
@@ -56,14 +72,16 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
     const setView = useCallback((nextView) => { if (meetingPeople.length && nextView !== "day") setMeetingPeople([]); localStorage.setItem("calendar-view", nextView); setViewState(nextView); }, [meetingPeople.length]);
 
     const loadCalendars = useCallback(async () => {
-        try { setError(""); setCalendars(await calendarApi.list()); } catch (requestError) { setError(requestError.message); }
+        try { setError(""); setCalendars(await calendarApi.list()); } catch (requestError) { setError(requestError.message); setCalendars([]); }
+        finally { setCalendarsLoaded(true); }
     }, []);
     const loadEvents = useCallback(async () => {
+        if (!calendarsLoaded) return;
         if (!calendars.length || !visibleIds.length) { setEvents([]); setLoading(false); return; }
         try { setLoading(true); setError(""); setEvents(await eventApi.list(range[0].toISOString(), range[1].toISOString(), visibleIds)); }
         catch (requestError) { setError(requestError.message); }
         finally { setLoading(false); }
-    }, [calendars.length, range, visibleIds]);
+    }, [calendars.length, calendarsLoaded, range, visibleIds]);
     const loadInsights = useCallback(async () => {
         if (!calendars.length || !visibleIds.length) { setInsights(null); setInsightsStatus({ loading: false, error: "" }); return; }
         try {
@@ -141,7 +159,7 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
     const createMeeting = (startAt, people = meetingPeople) => setEditorDraft({ cursor: startAt, startAt, type: "event", title: people.length ? `Meeting with ${people.map((person) => person.name).join(", ")}` : "", participants: people.map((person) => person.name), participantPeople: people });
     const renderView = () => {
         if (meetingPeople.length) return <AvailabilityComparison cursor={cursor} key={availabilityRevision} ownerColor={calendars.find((calendar) => calendar.isPrimary)?.color} people={meetingPeople} onCreate={createMeeting} onEventSelect={selectEvent} />;
-        if (loading) return <div className="view-status" role="status">Loading calendar…</div>;
+        if (loading || !calendarsLoaded) return <CalendarLoadingState view={view} />;
         if (!visibleIds.length) return <div className="empty-state"><h2>All calendars are hidden</h2><p>Turn on a calendar in the sidebar to see its events.</p></div>;
         if (view === "day") return <TimeGrid calendars={calendars} cursor={cursor} days={1} events={events} onCreate={createEvent} onEventSelect={selectEvent} />;
         if (view === "week") return <TimeGrid calendars={calendars} cursor={cursor} days={7} events={events} onCreate={createEvent} onEventSelect={selectEvent} />;
@@ -167,7 +185,8 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
 
 export default function App() {
     const [account, setAccount] = useState(null);
-    const [authLoading, setAuthLoading] = useState(true);
+    const [authLoading, setAuthLoading] = useState(false);
+    const [bootstrapping, setBootstrapping] = useState(true);
     const [authError, setAuthError] = useState("");
     const [profiles, setProfiles] = useState(null);
     const [profileError, setProfileError] = useState("");
@@ -184,25 +203,41 @@ export default function App() {
     useEffect(() => {
         let active = true;
         const restore = async () => {
-            if (!hasSessionToken()) { if (active) setAuthLoading(false); return; }
+            if (!hasSessionToken()) { if (active) setBootstrapping(false); return; }
+            let restoredSession = null;
+            let restoreError = null;
             try {
-                const session = await authApi.session();
-                if (active) { setAccount(session.account); setAuthError(""); }
+                restoredSession = await authApi.session();
             } catch (error) {
+                restoreError = error;
                 if (hasProfileToken()) {
                     setProfileToken("");
                     localStorage.removeItem("calendar-profile-id");
-                    try { const session = await authApi.session(); if (active) { setAccount(session.account); setAuthError(""); } return; }
-                    catch {}
+                    try { restoredSession = await authApi.session(); restoreError = null; }
+                    catch (sessionError) { restoreError = sessionError; }
                 }
-                setSessionToken("");
-                if (active) setAuthError(error.message);
-            } finally { if (active) setAuthLoading(false); }
+            }
+            if (!active) return;
+            if (!restoredSession) {
+                setProfileToken(""); setSessionToken(""); localStorage.removeItem("calendar-profile-id");
+                setAuthError(restoreError?.message || "Your Calendar session has expired.");
+                setBootstrapping(false);
+                return;
+            }
+            let restoredProfiles = [];
+            let restoredProfileError = "";
+            try { restoredProfiles = await profileApi.list(); }
+            catch (profileRequestError) { restoredProfileError = profileRequestError.message; }
+            if (!active) return;
+            setAccount(restoredSession.account);
+            setProfiles(restoredProfiles);
+            setAuthError("");
+            setProfileError(restoredProfileError);
+            setBootstrapping(false);
         };
         restore();
         return () => { active = false; };
-    }, []);
-    useEffect(() => { if (account) loadProfiles(); else setProfiles(null); }, [account, loadProfiles]);
+    }, []); // Session and profiles are restored together to avoid intermediate-screen flashes.
     const activeProfile = profiles?.find((profile) => String(profile._id) === selectedProfileId);
     useEffect(() => {
         if (profiles === null) return;
@@ -213,7 +248,16 @@ export default function App() {
         }
     }, [activeProfile, profiles, selectedProfileId]);
     const login = async (email, password) => {
-        try { setAuthLoading(true); setAuthError(""); const result = await authApi.login(email, password); setSessionToken(result.token); setAccount(result.account); }
+        try {
+            setAuthLoading(true); setAuthError("");
+            const result = await authApi.login(email, password);
+            setSessionToken(result.token);
+            let discoveredProfiles = [];
+            try { setProfileError(""); discoveredProfiles = await profileApi.list(); }
+            catch (profileRequestError) { setProfileError(profileRequestError.message); }
+            setProfiles(discoveredProfiles);
+            setAccount(result.account);
+        }
         catch (error) { setAuthError(error.message); }
         finally { setAuthLoading(false); }
     };
@@ -230,7 +274,7 @@ export default function App() {
             setSelectedProfileId(String(profile._id));
         } catch (error) { setProfileError(error.message); }
     };
-    if (authLoading && !account) return <WorkspaceLogin loading />;
+    if (bootstrapping) return <AppBootScreen />;
     if (!account) return <WorkspaceLogin error={authError} loading={authLoading} onLogin={login} />;
     if (activeProfile) {
         return <CalendarWorkspace activeProfile={activeProfile} key={activeProfile._id} onLogout={logout} onSwitchProfile={() => { localStorage.removeItem("calendar-profile-id"); setProfileToken(""); setSelectedProfileId(""); }} />;
