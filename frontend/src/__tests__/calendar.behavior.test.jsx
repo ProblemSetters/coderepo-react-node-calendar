@@ -416,22 +416,31 @@ describe("event behavior", () => {
         const onRespond = vi.fn();
         const event = {
             _id: "event-1", title: "Planning", type: "event", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false,
-            organizer: "River", editable: false, responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 1, declined: 0, tentative: 0 },
+            organizer: "River", editable: false, responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 1, declined: 1, tentative: 1 },
             participantPeople: [
                 { _id: "person-2", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", responseStatus: "accepted" },
                 { _id: "person-3", name: "Sage", email: "sage@hackerrank.com", avatarColor: "#d93025", responseStatus: "needsAction" },
+                { _id: "person-4", name: "Ember", email: "ember@hackerrank.com", avatarColor: "#00796b", responseStatus: "declined" },
+                { _id: "person-5", name: "Nova", email: "nova@hackerrank.com", avatarColor: "#7b1fa2", responseStatus: "tentative" },
             ],
         };
         const { rerender } = render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onRespond={onRespond} />);
-        expect(screen.getByText("1 yes · 1 awaiting")).toBeInTheDocument();
+        expect(screen.getByText("4 guests")).toBeInTheDocument();
+        for (const summary of ["1 yes", "1 no", "1 awaiting", "1 maybe"]) expect(screen.getByText(summary)).toBeInTheDocument();
+        const guestDisclosure = screen.getByRole("button", { name: "Show guest details" });
+        expect(guestDisclosure).toHaveAttribute("aria-expanded", "false");
+        expect(screen.queryByText("sky@hackerrank.com")).not.toBeInTheDocument();
+        await userEvent.click(guestDisclosure);
+        expect(screen.getByRole("button", { name: "Hide guest details" })).toHaveAttribute("aria-expanded", "true");
         expect(screen.getByText("sky@hackerrank.com")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Hide guest details" }));
         for (const name of ["Yes, attending", "Maybe attending", "No, declining"]) expect(screen.getByRole("button", { name })).toHaveAttribute("aria-pressed", "false");
         await userEvent.click(screen.getByRole("button", { name: "Maybe attending" }));
         expect(onRespond).toHaveBeenCalledWith("tentative");
 
         rerender(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={{ ...event, editable: true, responseStatus: undefined }} onClose={vi.fn()} onDelete={vi.fn()} onEdit={vi.fn()} onRespond={onRespond} />);
         expect(screen.queryByText("Going?")).not.toBeInTheDocument();
-        expect(screen.getByText("1 yes · 1 awaiting")).toBeInTheDocument();
+        expect(screen.getByText("4 guests")).toBeInTheDocument();
     });
 
     test("asks for occurrence scope before responding to a recurring invitation", async () => {

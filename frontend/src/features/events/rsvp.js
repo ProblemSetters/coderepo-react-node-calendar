@@ -10,12 +10,3 @@ export const rsvpStatusLabels = {
     declined: "No",
     tentative: "Maybe",
 };
-
-export function responseSummaryText(summary = {}) {
-    return [
-        summary.accepted && `${summary.accepted} yes`,
-        summary.tentative && `${summary.tentative} maybe`,
-        summary.declined && `${summary.declined} no`,
-        summary.needsAction && `${summary.needsAction} awaiting`,
-    ].filter(Boolean).join(" · ");
-}

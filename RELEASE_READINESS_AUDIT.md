@@ -16,7 +16,7 @@ This is the authoritative implementation, verification, backlog, and QuickBites-
 | Total automated tests | **166/166 passed** |
 | Frontend coverage | 84.07% statements, 76.87% branches, 84.58% functions, 91.95% lines |
 | Backend coverage | 91.42% statements, 77.52% branches, 91.79% functions, 93.57% lines |
-| Production build | Passed with Vite 8.2.2; 61 modules, 303.53 kB JavaScript and 85.97 kB CSS before gzip |
+| Production build | Passed with Vite 8.2.2; 61 modules, 304.27 kB JavaScript and 86.55 kB CSS before gzip |
 | Production dependency audit | Passed; `bun audit --production` reports **0 vulnerabilities** |
 | Repository-level test command | Passed end to end |
 | Static diff check | Passed |
@@ -133,7 +133,7 @@ Status: **Complete for single items and core recurring series. Per-instance edit
 - Free attendees outside their local working hours are reported separately as warnings.
 - Every directory attendee has a durable `needsAction`, `accepted`, `tentative`, or `declined` response, with an optional response timestamp.
 - Invitees can answer **Yes**, **Maybe**, or **No** from read-only event details without gaining organizer edit/delete permissions.
-- Organizers see aggregate response counts and each guest’s current status; newly added guests start pending and retained guests keep their answer.
+- Event previews show a compact, expandable guest summary with the total and separate nonzero `yes`, `no`, `awaiting`, and `maybe` counts. Expanding it reveals the existing identity, email, and response-status list; meeting-room counts are deliberately omitted. Newly added guests start pending and retained guests keep their answer.
 - Date, time, or all-day schedule changes reset responses to pending so attendees explicitly reconfirm the changed invitation.
 - Pending and tentative invitations render as unfilled, color-outlined cards; accepted invitations are filled; declined invitations remain discoverable as outlined, struck-through cards in Day, Week, Month, popover, and search surfaces.
 - Declined invitations no longer make that attendee appear busy, while accepted, tentative, and pending invitations continue to block conflicts.
@@ -315,6 +315,7 @@ Previously recorded responsive and workflow checks retained as regression eviden
 - Invitation cards: pending rendered white with the calendar-colored outline, accepted rendered filled, and declined retained the outline with struck-through title and time.
 - Recurrence editor: live desktop QA exposed every Google-style preset and the custom interval, frequency, weekday, monthly, and ending controls without saving test data.
 - Organizer event preview: immediately displayed `1 no` plus the responding guest’s identity, HackerRank email, and status.
+- Guest-summary disclosure: a seeded three-person invitation opened with `3 guests`, `2 yes`, and `1 awaiting`; no individual identities were rendered until expansion, after which all three names, HackerRank emails, and statuses appeared. No meeting-room wording is present.
 - Mobile 390×844 RSVP dialog: measured 358 pixels wide, remained fully inside the viewport, and needed no internal scrolling (`clientHeight === scrollHeight`).
 - Event and calendar deletion opened centered application dialogs instead of browser prompts; Cancel received initial focus and destructive failures remained inside the relevant flow.
 - Closing a dirty event editor opened the in-app **Discard changes?** dialog without losing the draft; its Cancel action was initially focused.

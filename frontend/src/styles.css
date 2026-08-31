@@ -650,6 +650,13 @@ dialog::backdrop { background: rgb(32 33 36 / 18%); }
 .recurrence-scope-dialog fieldset label { display: flex; align-items: center; gap: 14px; min-height: 36px; color: #3c4043; font-size: 15px; cursor: pointer; }
 .recurrence-scope-dialog fieldset input { width: 20px; height: 20px; margin: 0; accent-color: #0b57d0; }
 .preview-attendees > div { min-width: 0; }
+.preview-attendees-summary { display: flex; width: 100%; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #3c4043; text-align: left; }
+.preview-attendees-summary:hover { background: #f1f3f4; }
+.preview-attendees-summary > span { min-width: 0; }
+.preview-attendees-summary strong { display: block; color: #202124; font-size: 15px; font-weight: 400; line-height: 20px; }
+.preview-attendee-counts { display: block; }
+.preview-attendee-counts small { color: #5f6368; font-size: 13px; line-height: 19px; }
+.preview-attendees-chevron { flex: 0 0 auto; margin-top: 1px; color: #5f6368; }
 .preview-attendees ul { margin: 10px 0 0; padding: 0; list-style: none; }
 .preview-attendees li { display: grid; min-width: 0; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 10px; padding: 7px 0; }
 .preview-attendee-avatar-wrap { display: block !important; position: relative; width: 36px; height: 36px; }

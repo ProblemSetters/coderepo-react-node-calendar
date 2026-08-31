@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { Modal } from "../../shared/components/Modal.jsx";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { formatTime } from "../../shared/utils/date.js";
 import { identityInitials } from "../../shared/utils/identity.js";
-import { responseSummaryText, rsvpOptions, rsvpStatusLabels } from "./rsvp.js";
+import { rsvpOptions, rsvpStatusLabels } from "./rsvp.js";
 import { recurrenceLabel } from "./RepeatSelector.jsx";
 
 export function EventPreview({ calendar, error = "", event, onClose, onDelete, onEdit, onRespond, responding = false }) {
@@ -13,10 +13,14 @@ export function EventPreview({ calendar, error = "", event, onClose, onDelete, o
     const [deleteConfirmation, setDeleteConfirmation] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState("");
+    const [guestsExpanded, setGuestsExpanded] = useState(false);
+    const guestListId = useId();
     const date = new Date(event.startAt);
     const typeLabels = { event: "Event", task: "Task", outOfOffice: "Out of office", focusTime: "Focus time", workingLocation: "Working location", appointmentSchedule: "Appointment schedule" };
     const guests = event.participantPeople || [];
-    const summary = responseSummaryText(event.responseSummary);
+    const responseCounts = event.responseSummary || guests.reduce((counts, guest) => ({ ...counts, [guest.responseStatus || "needsAction"]: (counts[guest.responseStatus || "needsAction"] || 0) + 1 }), {});
+    const responseRows = [["accepted", "yes"], ["declined", "no"], ["needsAction", "awaiting"], ["tentative", "maybe"]].map(([status, label]) => ({ count: responseCounts[status] || 0, label })).filter(({ count }) => count > 0);
+    const guestCount = Math.max(guests.length, event.participants?.length || 0, responseRows.reduce((total, row) => total + row.count, 0));
     const canRespond = event.editable === false && Boolean(event.responseStatus) && Boolean(onRespond);
     const organizerName = event.readOnlyOwner || event.organizer;
     const recurring = Boolean(event.recurring || event.recurrence?.frequency && event.recurrence.frequency !== "none");
@@ -35,9 +39,9 @@ export function EventPreview({ calendar, error = "", event, onClose, onDelete, o
             <strong id="preview-rsvp-title">Going?</strong>
             <div className="preview-rsvp-actions">{rsvpOptions.map((option) => <button type="button" aria-label={option.accessibleLabel} aria-pressed={event.responseStatus === option.status} className={event.responseStatus === option.status ? "selected" : ""} disabled={responding} key={option.status} onClick={() => { if (recurring || event.responseStatus !== option.status) chooseResponse(option.status); }}>{event.responseStatus === option.status && <MaterialIcon size={17}>{option.icon}</MaterialIcon>}<span>{option.label}</span></button>)}</div>
         </section>}
-        {(guests.length || event.participants?.length || event.organizer) && <div className="preview-detail preview-attendees"><MaterialIcon>group</MaterialIcon><div>
-            <span>{guests.length ? `${guests.length} guest${guests.length === 1 ? "" : "s"}` : event.participants?.length ? event.participants.join(", ") : event.organizer}{summary && <small>{summary}</small>}</span>
-            {guests.length > 0 && <ul>{guests.map((guest) => <li key={guest._id || guest.name}>
+        {(guestCount > 0 || event.organizer) && <div className="preview-detail preview-attendees"><MaterialIcon>group</MaterialIcon><div>
+            {guests.length > 0 ? <button aria-controls={guestListId} aria-expanded={guestsExpanded} aria-label={`${guestsExpanded ? "Hide" : "Show"} guest details`} className="preview-attendees-summary" type="button" onClick={() => setGuestsExpanded((expanded) => !expanded)}><span><strong>{guestCount} guest{guestCount === 1 ? "" : "s"}</strong><span className="preview-attendee-counts">{responseRows.map(({ count, label }) => <small key={label}>{count} {label}</small>)}</span></span><MaterialIcon className="preview-attendees-chevron" size={20}>{guestsExpanded ? "expand_less" : "expand_more"}</MaterialIcon></button> : <span>{guestCount > 0 ? `${guestCount} guest${guestCount === 1 ? "" : "s"}` : event.organizer}{responseRows.length > 0 && <span className="preview-attendee-counts">{responseRows.map(({ count, label }) => <small key={label}>{count} {label}</small>)}</span>}</span>}
+            {guests.length > 0 && guestsExpanded && <ul id={guestListId}>{guests.map((guest) => <li key={guest._id || guest.name}>
                 <span className="preview-attendee-avatar-wrap"><i className="preview-attendee-avatar" style={{ backgroundColor: guest.avatarColor || "#5f6368" }}>{identityInitials(guest.name)}</i><i className={`preview-attendee-badge ${guest.responseStatus || "needsAction"}`}><MaterialIcon size={13}>{guest.responseStatus === "accepted" ? "check" : guest.responseStatus === "declined" ? "close" : guest.responseStatus === "tentative" ? "help_outline" : "schedule"}</MaterialIcon></i></span>
                 <span><strong>{guest.name}</strong>{guest.email && <small>{guest.email}</small>}</span>
                 <span className="sr-only">{rsvpStatusLabels[guest.responseStatus || "needsAction"]}</span>
