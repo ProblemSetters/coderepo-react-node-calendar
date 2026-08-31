@@ -528,7 +528,9 @@ describe("event behavior", () => {
         const calendars = [{ _id: "calendar-1", color: "#1a73e8" }];
         const base = { _id: "invitation", calendarId: "calendar-1", title: "Planning", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false };
         const { rerender } = render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[{ ...base, responseStatus: "needsAction" }]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
-        expect(screen.getByRole("button", { name: /Planning/ })).toHaveStyle({ backgroundColor: "#fff", borderColor: "#1a73e8" });
+        const outlinedEvent = screen.getByRole("button", { name: /Planning/ });
+        expect(outlinedEvent).toHaveStyle({ backgroundColor: "#fff", borderColor: "#1a73e8" });
+        expect(getComputedStyle(outlinedEvent).borderWidth).toBe("1px");
         rerender(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[{ ...base, responseStatus: "accepted" }]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
         expect(screen.getByRole("button", { name: /Planning/ })).toHaveStyle({ backgroundColor: "#1a73e8" });
     });

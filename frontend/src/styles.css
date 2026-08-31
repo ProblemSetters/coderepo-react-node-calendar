@@ -422,7 +422,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .timed-event[data-item-type="outOfOffice"][data-density="compact"] > span, .timed-event[data-item-type="outOfOffice"][data-density="micro"] > span { grid-row: 1; }
 .timed-event[data-item-type="outOfOffice"][data-density="compact"] > span, .timed-event[data-item-type="outOfOffice"][data-density="micro"] > span { grid-column: 3; }
 .timed-event[data-response-status="needsAction"], .timed-event[data-response-status="tentative"], .timed-event[data-response-status="declined"],
-.all-day-event[data-response-status="needsAction"], .all-day-event[data-response-status="tentative"], .all-day-event[data-response-status="declined"] { border-width: 2px; box-shadow: none; }
+.all-day-event[data-response-status="needsAction"], .all-day-event[data-response-status="tentative"], .all-day-event[data-response-status="declined"] { border-width: 1px; box-shadow: none; }
 .timed-event[data-response-status="declined"] strong, .timed-event[data-response-status="declined"] > span, .all-day-event[data-response-status="declined"] > span { text-decoration: line-through; }
 .all-day-event[data-item-type="outOfOffice"] { color: #202124 !important; background: #e8f0fe !important; }
 .all-day-event[data-item-type="outOfOffice"] .out-of-office-icon { flex: 0 0 auto; color: #4285f4; }
