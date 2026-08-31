@@ -5,6 +5,7 @@ import { getLayeredEventGeometry, layoutTimedEvents } from "./event-layout.js";
 import { foregroundForColor, overlapColor } from "./calendar-colors.js";
 
 const hourHeight = 64;
+export const timeGridLayers = Object.freeze({ eventHover: 50, currentTime: 60 });
 
 export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSelect }) {
     const scrollReference = useRef(null);
@@ -49,7 +50,7 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
                         const dayEnd = addDays(dayStart, 1);
                         const dayEvents = timedEvents.filter((event) => new Date(event.startAt) < dayEnd && new Date(event.endAt) > dayStart).map((event) => ({ ...event, originalEvent: event, startAt: new Date(Math.max(new Date(event.startAt), dayStart)), endAt: new Date(Math.min(new Date(event.endAt), dayEnd)) }));
                         const layout = layoutTimedEvents(dayEvents);
-                    return <div key={dateKey(date)} className="time-column" onClick={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); const minutes = Math.max(0, Math.min(1439, ((event.clientY - bounds.top) / hourHeight) * 60)); const slot = Math.floor(minutes / 30); const startAt = new Date(date); startAt.setHours(Math.floor(slot / 2), (slot % 2) * 30, 0, 0); onCreate(startAt); }}>
+                    return <div key={dateKey(date)} className="time-column" style={{ "--event-hover-layer": timeGridLayers.eventHover, "--current-time-layer": timeGridLayers.currentTime }} onClick={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); const minutes = Math.max(0, Math.min(1439, ((event.clientY - bounds.top) / hourHeight) * 60)); const slot = Math.floor(minutes / 30); const startAt = new Date(date); startAt.setHours(Math.floor(slot / 2), (slot % 2) * 30, 0, 0); onCreate(startAt); }}>
                             {isSameDay(date, today) && <div className="current-time" style={{ top: `${(today.getHours() + today.getMinutes() / 60) * hourHeight}px` }}><i /></div>}
                             {layout.map(({ event, column, columns }) => {
                                 const eventStart = new Date(event.startAt); const eventEnd = new Date(event.endAt);

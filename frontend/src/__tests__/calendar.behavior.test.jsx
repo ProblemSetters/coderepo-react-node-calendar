@@ -6,7 +6,7 @@ import { CalendarSidebar } from "../features/calendar/CalendarSidebar.jsx";
 import { CalendarEditor } from "../features/calendar/CalendarEditor.jsx";
 import { MiniCalendar } from "../features/calendar/MiniCalendar.jsx";
 import { MonthView } from "../features/calendar/MonthView.jsx";
-import { TimeGrid } from "../features/calendar/TimeGrid.jsx";
+import { TimeGrid, timeGridLayers } from "../features/calendar/TimeGrid.jsx";
 import { getLayeredEventGeometry, layoutTimedEvents } from "../features/calendar/event-layout.js";
 import { calendarColors, foregroundForColor, nextAvailableCalendarColor, overlapColor } from "../features/calendar/calendar-colors.js";
 import { EventEditor } from "../features/events/EventEditor.jsx";
@@ -616,6 +616,15 @@ describe("calendar creation", () => {
 describe("calendar views", () => {
     const calendars = [{ _id: "calendar-1", name: "My calendar", color: "#1a73e8" }];
     const events = [{ _id: "event-1", calendarId: "calendar-1", title: "Planning", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false }];
+
+    test("keeps the current-time marker above hovered and focused events without intercepting input", () => {
+        const { container } = render(<TimeGrid calendars={calendars} cursor={new Date()} days={1} events={[]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
+        const column = container.querySelector(".time-column");
+        expect(timeGridLayers.currentTime).toBeGreaterThan(timeGridLayers.eventHover);
+        expect(column.style.getPropertyValue("--event-hover-layer")).toBe(String(timeGridLayers.eventHover));
+        expect(column.style.getPropertyValue("--current-time-layer")).toBe(String(timeGridLayers.currentTime));
+        expect(container.querySelector(".current-time")).toBeInTheDocument();
+    });
 
     test("renders timed events in the day grid", () => {
         const { container } = render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={events} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
