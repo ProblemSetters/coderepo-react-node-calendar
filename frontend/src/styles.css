@@ -393,9 +393,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .time-column:hover { background-color: rgb(248 250 253 / 35%); }
 .timed-event { position: absolute; z-index: 2; max-width: calc(100% - 8px); min-height: 20px; padding: 3px 6px 2px; overflow: hidden; border: 1px solid transparent; border-radius: 7px; color: #fff; line-height: 15px; text-align: left; box-shadow: none; }
 .timed-event[data-overlap="true"] { border-width: 1px; box-shadow: 0 1px 2px rgb(60 64 67 / 18%); }
-.timed-event[data-overlap-edge="start"] { border-radius: 7px 0 0 7px; }
-.timed-event[data-overlap-edge="middle"] { border-radius: 0; }
-.timed-event[data-overlap-edge="end"] { border-radius: 0 7px 7px 0; }
+.timed-event[data-overlap-edge="start"], .timed-event[data-overlap-edge="middle"], .timed-event[data-overlap-edge="end"] { border-radius: 7px; }
 .timed-event:hover, .timed-event:focus-visible { z-index: var(--event-hover-layer) !important; filter: brightness(.95); box-shadow: 0 2px 5px rgb(60 64 67 / 30%); }
 .timed-event[data-overlap="true"]:hover, .timed-event[data-overlap="true"]:focus-visible { z-index: var(--event-base-layer) !important; }
 .timed-event strong, .timed-event span { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
