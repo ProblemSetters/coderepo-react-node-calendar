@@ -1,33 +1,12 @@
 # Calendar
 
-Calendar is a full-stack scheduling workspace for people who need one place to plan their own time and coordinate with a team. It combines personal calendars, shared availability, meeting planning, invitation responses, search, and daily time insights in a single product.
+<Center Aligned>
+A HackerRank sample repo 
 
-The React interface uses the Express API for every product data flow. MongoDB is the source of truth for workspace accounts, profiles, calendars, events, guest responses, availability, and insights.
+<Image>
 
-## Product capabilities
 
-### Workspace access and navigation
-
-- Sign in with a seeded workspace account, switch between profiles, resume a session, and sign out.
-- Move between day, week, and month views using period controls, the mini calendar, Today, or keyboard shortcuts.
-
-### Calendar and event management
-
-- Create, view, edit, and delete events, tasks, focus time, out-of-office blocks, working locations, and appointment schedules.
-- Schedule timed or all-day items with a calendar, color, location, description, guests, and recurring rules.
-- Create, rename, recolor, show, hide, display exclusively, and delete empty calendars.
-
-### Availability and collaboration
-
-- Find coworkers, compare schedules and working hours, detect conflicts, and choose suggested meeting times.
-- Review guest details and respond to invitations with Yes, Maybe, or No.
-
-### Search and time insights
-
-- Search by keywords, participant, location, calendar scope, excluded text, or date range.
-- Review daily scheduled and remaining time by item type or calendar, then create a focus-time block.
-
-## Technology stack
+**Built With**
 
 | Layer | Technology | Role |
 |---|---|---|
@@ -39,6 +18,11 @@ The React interface uses the Express API for every product data flow. MongoDB is
 | Validation | Zod | API request parsing and validation. |
 | Authentication | JSON Web Tokens and bcrypt | Workspace login, profile context, protected routes, and password verification. |
 | Styling and assets | CSS and local Roboto font files | Responsive product styling without an external component library or CDN. |
+
+
+**Getting Started**
+
+
 
 ## Project structure
 
@@ -90,9 +74,46 @@ The React interface uses the Express API for every product data flow. MongoDB is
 └── bun.lock                     Pinned JavaScript dependency graph
 ```
 
-Frontend and backend code are organized by the same product domains. Backend routes delegate HTTP handling to controllers, business rules to services, and database operations to repositories.
+<!-- GETTING STARTED -->
 
-## Run the application
+## Getting Started
+
+To get a local copy up and running, please follow these simple steps.
+
+### Prerequisites
+
+Here’s what you need to run Cal.diy.
+
+- Node.js (Version: >=18.x)
+- PostgreSQL (Version: >=13.x)
+- Yarn _(recommended)_
+
+> If you want to enable any of the available integrations, you may want to obtain additional credentials for each one. More details on this can be found below under the [integrations section](#integrations).
+
+## Development
+
+### Setup
+
+1. Clone the repo (or fork https://github.com/calcom/cal.diy/fork)
+
+   ```sh
+   git clone https://github.com/calcom/cal.diy.git
+   ```
+
+   > If you are on Windows, run the following command in Git Bash with admin privileges:
+   > `git clone -c core.symlinks=true https://github.com/calcom/cal.diy.git`
+
+2. Go to the project folder
+
+   ```sh
+   cd cal.diy
+   ```
+
+3. Install packages with yarn
+
+   ```sh
+   yarn
+   ```
 
 ### Prerequisites
 
