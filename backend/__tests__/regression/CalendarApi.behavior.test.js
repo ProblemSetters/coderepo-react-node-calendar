@@ -38,8 +38,8 @@ beforeEach(async () => {
 });
 
 const personPayload = (overrides = {}) => ({
-    name: "Sage",
-    email: "sage@hackerrank.com",
+    name: "Taylor Johnson",
+    email: "taylor.johnson@calendar.com",
     avatarColor: "#d93025",
     workingHours: { startMinute: 540, endMinute: 1020 },
     busyBlocks: [],
@@ -68,27 +68,27 @@ describe("health", () => {
 describe("workspace authentication", () => {
     test("authenticates once, scopes profile switching, and rejects invalid sessions", async () => {
         const [river, outsider] = await Person.create([
-            personPayload({ name: "River", email: "river@hackerrank.com", isProfile: true }),
-            personPayload({ name: "Outside", email: "outside@hackerrank.com", isProfile: true }),
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", isProfile: true }),
+            personPayload({ name: "Outside", email: "outside@calendar.com", isProfile: true }),
         ]);
-        const account = await WorkspaceAccount.create({ name: "Calendar assessment", email: "calendar@hackerrank.com", passwordHash: await bcrypt.hash("password123", 4), allowedProfileIds: [river._id] });
+        const account = await WorkspaceAccount.create({ name: "Shared workspace", email: "workspace@calendar.com", passwordHash: await bcrypt.hash("password123", 4), allowedProfileIds: [river._id] });
 
         expect((await request(app).get("/api/v1/auth/session")).body.error.code).toBe("AUTH_REQUIRED");
-        expect((await request(app).post("/api/v1/auth/login").send({ email: "calendar@hackerrank.com", password: "wrong" })).body.error.code).toBe("INVALID_CREDENTIALS");
-        const login = await request(app).post("/api/v1/auth/login").send({ email: "CALENDAR@HACKERRANK.COM", password: "password123" });
+        expect((await request(app).post("/api/v1/auth/login").send({ email: "workspace@calendar.com", password: "wrong" })).body.error.code).toBe("INVALID_CREDENTIALS");
+        const login = await request(app).post("/api/v1/auth/login").send({ email: "WORKSPACE@CALENDAR.COM", password: "password123" });
         expect(login.status).toBe(200);
-        expect(login.body.data.account).toEqual(expect.objectContaining({ name: "Calendar assessment", email: "calendar@hackerrank.com" }));
+        expect(login.body.data.account).toEqual(expect.objectContaining({ name: "Shared workspace", email: "workspace@calendar.com" }));
         expect(JSON.stringify(login.body)).not.toContain("passwordHash");
         const workspaceToken = login.body.data.token;
         const auth = { Authorization: `Bearer ${workspaceToken}` };
-        expect((await request(app).get("/api/v1/auth/session").set(auth)).body.data.account.email).toBe("calendar@hackerrank.com");
-        expect((await request(app).get("/api/v1/profiles").set(auth)).body.data.map((profile) => profile.name)).toEqual(["River"]);
+        expect((await request(app).get("/api/v1/auth/session").set(auth)).body.data.account.email).toBe("workspace@calendar.com");
+        expect((await request(app).get("/api/v1/profiles").set(auth)).body.data.map((profile) => profile.name)).toEqual(["Alex Morgan"]);
         expect((await request(app).get("/api/v1/calendars").set(auth)).body.error.code).toBe("PROFILE_REQUIRED");
         expect((await request(app).post("/api/v1/auth/switch-profile").set(auth).send({ profileId: String(outsider._id) })).body.error.code).toBe("PROFILE_FORBIDDEN");
         expect((await request(app).post("/api/v1/auth/switch-profile").set(auth).send({ profileId: "bad-id" })).status).toBe(400);
 
         const switched = await request(app).post("/api/v1/auth/switch-profile").set(auth).send({ profileId: String(river._id) });
-        expect(switched.body.data.profile.name).toBe("River");
+        expect(switched.body.data.profile.name).toBe("Alex Morgan");
         expect((await request(app).get("/api/v1/calendars").set("Authorization", `Bearer ${switched.body.data.token}`)).status).toBe(200);
         expect((await request(app).get("/api/v1/auth/session").set("Authorization", `Bearer ${workspaceToken}tampered`)).body.error.code).toBe("INVALID_TOKEN");
         const expired = jwt.sign({ sub: String(account._id), type: "workspace" }, config.jwtSecret, { expiresIn: -1, issuer: "calendar-api", audience: "calendar-assessment" });
@@ -101,7 +101,7 @@ describe("workspace authentication", () => {
 describe("demo profiles", () => {
     test("lists selectable profiles and isolates calendars while sharing invitations", async () => {
         const [user01, user03] = await Person.create([
-            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true, sortOrder: 1 }),
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5", isProfile: true, sortOrder: 1 }),
             personPayload({ isProfile: true, sortOrder: 2 }),
         ]);
         const [user01Calendar, user03Calendar] = await Calendar.create([
@@ -111,7 +111,7 @@ describe("demo profiles", () => {
         const meeting = await Event.create({ ...eventPayload(), calendarId: user01Calendar._id, participants: [user03.name], participantIds: [user03._id] });
 
         const profiles = await request(app).get("/api/v1/profiles");
-        expect(profiles.body.data.map((profile) => profile.name)).toEqual(["River", "Sage"]);
+        expect(profiles.body.data.map((profile) => profile.name)).toEqual(["Alex Morgan", "Taylor Johnson"]);
         expect(profiles.body.data[0].busyBlocks).toBeUndefined();
 
         const user03Calendars = await request(app).get("/api/v1/calendars").set("X-Calendar-Profile", String(user03._id));
@@ -257,11 +257,11 @@ describe("events", () => {
 
     test("combines advanced search filters safely", async () => {
         await Event.create([
-            { ...eventPayload(), organizer: "River", participants: ["Sky"] },
-            { ...eventPayload(), title: "Cancelled review", description: "cancelled", location: "Room Cedar", participants: ["Sky"] },
-            { ...eventPayload(), title: "Remote review", location: "Online", participants: ["Sage"] },
+            { ...eventPayload(), organizer: "Alex Morgan", participants: ["Jordan Smith"] },
+            { ...eventPayload(), title: "Canceled review", description: "canceled", location: "Room Cedar", participants: ["Jordan Smith"] },
+            { ...eventPayload(), title: "Remote review", location: "Online", participants: ["Taylor Johnson"] },
         ]);
-        const response = await request(app).get(`/api/v1/events/search?what=release&who=Sky&where=Cedar&exclude=cancelled&from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const response = await request(app).get(`/api/v1/events/search?what=release&who=Jordan Smith&where=Cedar&exclude=canceled&from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(response.status).toBe(200);
         expect(response.body.data.map((event) => event.title)).toEqual(["Design review"]);
     });
@@ -321,8 +321,8 @@ describe("events", () => {
 
     test("lets invited profiles answer Yes, Maybe, or No while organizers see an accurate summary", async () => {
         const [owner, user02, user03] = await Person.create([
-            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#7b1fa2", isProfile: true }),
             personPayload({ isProfile: true }),
         ]);
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
@@ -350,15 +350,15 @@ describe("events", () => {
         expect(organizerView.body.data.responseStatus).toBeUndefined();
         expect(organizerView.body.data.responseSummary).toEqual({ needsAction: 0, accepted: 0, declined: 1, tentative: 1 });
         expect(organizerView.body.data.participantPeople).toEqual(expect.arrayContaining([
-            expect.objectContaining({ name: "Sky", responseStatus: "tentative" }),
-            expect.objectContaining({ name: "Sage", responseStatus: "declined" }),
+            expect.objectContaining({ name: "Jordan Smith", responseStatus: "tentative" }),
+            expect.objectContaining({ name: "Taylor Johnson", responseStatus: "declined" }),
         ]));
     });
 
     test("expands recurring events and applies attendee responses to this, following, or all occurrences", async () => {
         const [owner, attendee] = await Person.create([
-            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#7b1fa2", isProfile: true }),
         ]);
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
         const created = await request(app).post("/api/v1/events").set("X-Calendar-Profile", String(owner._id)).send({
@@ -392,8 +392,8 @@ describe("events", () => {
 
     test("preserves retained responses, adds new guests as pending, and resets answers after schedule changes", async () => {
         const [owner, user02, user03] = await Person.create([
-            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#7b1fa2", isProfile: true }),
             personPayload({ isProfile: true }),
         ]);
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
@@ -401,8 +401,8 @@ describe("events", () => {
 
         const guestsChanged = await request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send({ participantIds: [String(user02._id), String(user03._id)], participants: [user02.name, user03.name] });
         expect(guestsChanged.body.data.participantPeople).toEqual([
-            expect.objectContaining({ name: "Sky", responseStatus: "accepted" }),
-            expect.objectContaining({ name: "Sage", responseStatus: "needsAction" }),
+            expect.objectContaining({ name: "Jordan Smith", responseStatus: "accepted" }),
+            expect.objectContaining({ name: "Taylor Johnson", responseStatus: "needsAction" }),
         ]);
 
         const rescheduled = await request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send({ startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" });
@@ -410,10 +410,48 @@ describe("events", () => {
         expect(rescheduled.body.data.attendeeResponses.every((response) => response.respondedAt === null)).toBe(true);
     });
 
+    test("keeps guest responses when an edit does not move the event", async () => {
+        const [owner, guest] = await Person.create([
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#7b1fa2", isProfile: true }),
+        ]);
+        const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
+        const respondedAt = new Date("2026-08-20T12:00:00.000Z");
+        const event = await Event.create({
+            ...eventPayload(),
+            calendarId: ownerCalendar._id,
+            recurrence: { frequency: "weekly", interval: 1, daysOfWeek: [4], endType: "count", count: 10, timeZone: "UTC" },
+            participantIds: [guest._id],
+            participants: [guest.name],
+            attendeeResponses: [{ personId: guest._id, status: "accepted", respondedAt }],
+            recurrenceResponseOverrides: [{ personId: guest._id, occurrenceStartAt: new Date("2026-09-03T09:00:00.000Z"), scope: "this", status: "declined", respondedAt }],
+        });
+        const patch = (body) => request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send(body);
+
+        const renamed = await patch({ title: "Design review v2" });
+        expect(renamed.body.data.responseSummary).toEqual({ needsAction: 0, accepted: 1, declined: 0, tentative: 0 });
+
+        const resent = await patch({
+            title: "Design review v3",
+            startAt: "2026-08-27T09:00:00.000Z",
+            endAt: "2026-08-27T10:00:00.000Z",
+            allDay: false,
+            recurrence: { frequency: "weekly", interval: 1, daysOfWeek: [4], monthlyMode: "ordinalWeekday", endType: "count", count: 10, until: null, timeZone: "UTC" },
+            participantIds: [String(guest._id)],
+            participants: [guest.name],
+        });
+        expect(resent.body.data.responseSummary).toEqual({ needsAction: 0, accepted: 1, declined: 0, tentative: 0 });
+        expect(resent.body.data.recurrenceResponseOverrides).toHaveLength(1);
+
+        const moved = await patch({ startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T12:00:00.000Z" });
+        expect(moved.body.data.responseSummary).toEqual({ needsAction: 1, accepted: 0, declined: 0, tentative: 0 });
+        expect(moved.body.data.recurrenceResponseOverrides).toHaveLength(0);
+    });
+
     test("rejects invalid, unauthenticated, organizer, non-attendee, and stale invitation responses", async () => {
         const [owner, attendee, outsider] = await Person.create([
-            personPayload({ name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true }),
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2", isProfile: true }),
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5", isProfile: true }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#7b1fa2", isProfile: true }),
             personPayload({ isProfile: true }),
         ]);
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
@@ -450,6 +488,41 @@ describe("time insights", () => {
         expect(response.body.data.calendars).toEqual([expect.objectContaining({ name: "My calendar", color: "#1a73e8", minutes: 120 })]);
     });
 
+    test("counts an all-day out of office only on the days it actually covers", async () => {
+        await Event.create([
+            { ...eventPayload(), title: "Out of office", type: "outOfOffice", allDay: true, startAt: "2026-08-22T00:00:00.000Z", endAt: "2026-08-23T00:00:00.000Z" },
+        ]);
+        const quietDay = await request(app).get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        expect(quietDay.body.data.totalScheduledMinutes).toBe(0);
+        expect(quietDay.body.data.remainingMinutes).toBe(480);
+
+        const coveredDay = await request(app).get(`/api/v1/insights/daily?from=2026-08-22T00:00:00.000Z&to=2026-08-23T00:00:00.000Z&calendarIds=${primary._id}`);
+        expect(coveredDay.body.data.categories.find((category) => category.key === "outOfOffice").minutes).toBe(480);
+    });
+
+    test("scopes the breakdown to the signed-in profile's own calendars", async () => {
+        const [owner, other] = await Person.create([
+            personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", isProfile: true }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", isProfile: true }),
+        ]);
+        const [ownerCalendar, otherCalendar] = await Calendar.create([
+            { ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true },
+            { ownerId: other._id, name: "Other calendar", color: "#7b1fa2", visible: true, isPrimary: true },
+        ]);
+        await Event.create([
+            { ...eventPayload(), calendarId: ownerCalendar._id, title: "Mine", startAt: "2026-08-27T09:00:00.000Z", endAt: "2026-08-27T10:00:00.000Z" },
+            { ...eventPayload(), calendarId: otherCalendar._id, title: "Theirs", startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T12:00:00.000Z" },
+        ]);
+
+        const scoped = await request(app).get("/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z").set("X-Calendar-Profile", String(owner._id));
+        expect(scoped.body.data.meetingMinutes).toBe(60);
+        expect(scoped.body.data.calendars.map((calendar) => calendar.name)).toEqual(["Owner calendar"]);
+
+        const forged = await request(app).get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${otherCalendar._id}`).set("X-Calendar-Profile", String(owner._id));
+        expect(forged.body.data.meetingMinutes).toBe(0);
+        expect(forged.body.data.calendars).toEqual([]);
+    });
+
     test("rejects invalid insight ranges and calendar identifiers", async () => {
         const range = await request(app).get(`/api/v1/insights/daily?from=2026-08-28T00:00:00.000Z&to=2026-08-27T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(range.status).toBe(400);
@@ -483,31 +556,31 @@ describe("people and availability", () => {
     test("searches the directory by name and email without treating regex characters as patterns", async () => {
         await Person.create([
             personPayload(),
-            personPayload({ name: "Sky", email: "sky+calendar@hackerrank.com", avatarColor: "#1a73e8" }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith+desk@calendar.com", avatarColor: "#1a73e8" }),
         ]);
-        const name = await request(app).get("/api/v1/people?q=Sage");
+        const name = await request(app).get("/api/v1/people?q=Taylor Johnson");
         expect(name.status).toBe(200);
-        expect(name.body.data.map((person) => person.name)).toEqual(["Sage"]);
+        expect(name.body.data.map((person) => person.name)).toEqual(["Taylor Johnson"]);
         expect(name.body.data[0].busyBlocks).toBeUndefined();
-        const literal = await request(app).get("/api/v1/people?q=%2Bcalendar");
-        expect(literal.body.data.map((person) => person.name)).toEqual(["Sky"]);
+        const literal = await request(app).get("/api/v1/people?q=%2Bdesk");
+        expect(literal.body.data.map((person) => person.name)).toEqual(["Jordan Smith"]);
     });
 
     test("returns a bounded sorted directory and validates query limits", async () => {
         await Person.create([
-            personPayload({ name: "Nova", email: "nova@hackerrank.com" }),
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8" }),
+            personPayload({ name: "Casey Bennett", email: "casey.bennett@calendar.com" }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8" }),
         ]);
         const response = await request(app).get("/api/v1/people?limit=1");
         expect(response.status).toBe(200);
-        expect(response.body.data.map((person) => person.name)).toEqual(["Nova"]);
+        expect(response.body.data.map((person) => person.name)).toEqual(["Casey Bennett"]);
         expect((await request(app).get("/api/v1/people?limit=0")).status).toBe(400);
     });
 
     test("suggests only conflict-free shared-working-hour slots", async () => {
         const [user03, user02] = await Person.create([
             personPayload({ busyBlocks: [{ title: "Review", startAt: "2099-08-27T10:00:00.000Z", endAt: "2099-08-27T11:00:00.000Z" }] }),
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", workingHours: { startMinute: 600, endMinute: 960 }, busyBlocks: [{ title: "Stand-up", startAt: "2099-08-27T11:00:00.000Z", endAt: "2099-08-27T11:30:00.000Z" }] }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8", workingHours: { startMinute: 600, endMinute: 960 }, busyBlocks: [{ title: "Stand-up", startAt: "2099-08-27T11:00:00.000Z", endAt: "2099-08-27T11:30:00.000Z" }] }),
         ]);
         await Event.create({ ...eventPayload(), title: "Owner conflict", startAt: "2099-08-27T12:00:00.000Z", endAt: "2099-08-27T13:00:00.000Z" });
         const response = await request(app).post("/api/v1/availability/suggestions").send({
@@ -578,7 +651,7 @@ describe("people and availability", () => {
     test("reports only guests whose busy blocks overlap the proposed event", async () => {
         const [user03, user02] = await Person.create([
             personPayload({ busyBlocks: [{ title: "Design review", startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" }] }),
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", busyBlocks: [{ title: "Later meeting", startAt: "2026-08-27T12:00:00.000Z", endAt: "2026-08-27T13:00:00.000Z" }] }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8", busyBlocks: [{ title: "Later meeting", startAt: "2026-08-27T12:00:00.000Z", endAt: "2026-08-27T13:00:00.000Z" }] }),
         ]);
         const response = await request(app).post("/api/v1/availability/conflicts").send({
             participantIds: [String(user03._id), String(user02._id)],
@@ -588,7 +661,7 @@ describe("people and availability", () => {
         expect(response.status).toBe(200);
         expect(response.body.data.available).toBe(false);
         expect(response.body.data.conflicts).toEqual([expect.objectContaining({
-            person: expect.objectContaining({ name: "Sage" }),
+            person: expect.objectContaining({ name: "Taylor Johnson" }),
             busy: [expect.objectContaining({ title: "Design review", startAt: "2026-08-27T10:30:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })],
         })]);
     });
@@ -603,7 +676,7 @@ describe("people and availability", () => {
         });
         expect(outside.body.data).toEqual(expect.objectContaining({ available: true, conflicts: [], withinWorkingHours: false }));
         expect(outside.body.data.workingHoursWarnings).toEqual([expect.objectContaining({
-            person: expect.objectContaining({ name: "Sage", timeZone: "America/New_York" }),
+            person: expect.objectContaining({ name: "Taylor Johnson", timeZone: "America/New_York" }),
             localStartMinute: 510,
             workingDay: true,
         })]);
@@ -638,7 +711,7 @@ describe("people and availability", () => {
 
     test("removes declined invitations from only that attendee's busy schedule", async () => {
         const [user02, user03] = await Person.create([
-            personPayload({ name: "Sky", email: "sky@hackerrank.com", avatarColor: "#7b1fa2" }),
+            personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#7b1fa2" }),
             personPayload(),
         ]);
         await Event.create({
@@ -652,24 +725,24 @@ describe("people and availability", () => {
             ],
         });
         const response = await request(app).post("/api/v1/availability/conflicts").send({ participantIds: [String(user02._id), String(user03._id)], startAt: "2026-08-27T09:15:00.000Z", endAt: "2026-08-27T09:45:00.000Z" });
-        expect(response.body.data.conflicts.map((conflict) => conflict.person.name)).toEqual(["Sage"]);
+        expect(response.body.data.conflicts.map((conflict) => conflict.person.name)).toEqual(["Taylor Johnson"]);
     });
 
     test("keeps directory identities aligned with legacy name-only guests", async () => {
-        const person = await Person.create(personPayload({ name: "Sage", email: "sage@hackerrank.com" }));
+        const person = await Person.create(personPayload({ name: "Taylor Johnson", email: "taylor.johnson@calendar.com" }));
         const created = await request(app).post("/api/v1/events").send({
             ...eventPayload(),
-            participants: ["Saved User", "Sage"],
+            participants: ["Saved User", "Taylor Johnson"],
             participantIds: [String(person._id)],
         });
         expect(created.status).toBe(201);
-        expect(created.body.data.participants).toEqual(["Sage", "Saved User"]);
+        expect(created.body.data.participants).toEqual(["Taylor Johnson", "Saved User"]);
         expect(created.body.data.participantPeople).toEqual([
-            expect.objectContaining({ _id: String(person._id), name: "Sage", email: "sage@hackerrank.com" }),
+            expect.objectContaining({ _id: String(person._id), name: "Taylor Johnson", email: "taylor.johnson@calendar.com" }),
             expect.objectContaining({ name: "Saved User", email: "" }),
         ]);
         const reopened = await request(app).get(`/api/v1/events/${created.body.data._id}`);
-        expect(reopened.body.data.participantPeople[0]).toEqual(expect.objectContaining({ _id: String(person._id), name: "Sage" }));
+        expect(reopened.body.data.participantPeople[0]).toEqual(expect.objectContaining({ _id: String(person._id), name: "Taylor Johnson" }));
         expect(reopened.body.data.participantPeople[1].name).toBe("Saved User");
     });
 

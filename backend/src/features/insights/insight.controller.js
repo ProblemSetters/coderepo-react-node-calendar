@@ -10,7 +10,7 @@ const dailyInsightSchema = z.object({
 
 export async function getDailyInsight(request, response, next) {
     try {
-        response.json({ data: await insightService.daily(dailyInsightSchema.parse(request.query)) });
+        response.json({ data: await insightService.daily(dailyInsightSchema.parse(request.query), request.profileId) });
     } catch (error) {
         next(error);
     }

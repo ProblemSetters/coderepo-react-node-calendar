@@ -36,7 +36,8 @@ function matchesDate(anchorDate, candidateDate, recurrence) {
     if (recurrence.frequency === "daily") return days % interval === 0;
     if (recurrence.frequency === "weekdays") return ![0, 6].includes(weekday);
     if (recurrence.frequency === "weekly") {
-        const week = Math.floor(days / 7);
+        const daysFromWeekStart = days + dayOfWeek(anchorDate) - weekday;
+        const week = Math.round(daysFromWeekStart / 7);
         return week % interval === 0 && (recurrence.daysOfWeek?.length ? recurrence.daysOfWeek : [dayOfWeek(anchorDate)]).includes(weekday);
     }
     if (recurrence.frequency === "monthly") {
@@ -54,12 +55,12 @@ function matchesDate(anchorDate, candidateDate, recurrence) {
     return false;
 }
 
-export function isRecurring(event) {
-    return Boolean(event.recurrence?.frequency && event.recurrence.frequency !== "none");
+export function recurrenceUntilDate(until) {
+    return new Date(until).toISOString().slice(0, 10);
 }
 
-export function occurrenceIdentity(event) {
-    return event.occurrenceStartAt || event.startAt;
+export function isRecurring(event) {
+    return Boolean(event.recurrence?.frequency && event.recurrence.frequency !== "none");
 }
 
 export function expandEvent(event, from, to) {
@@ -75,7 +76,7 @@ export function expandEvent(event, from, to) {
     const queryStartDate = localDateKey(new Date(Math.max(start.getTime(), from.getTime() - duration)), timeZone);
     const queryEndDate = localDateKey(to, timeZone);
     const countLimit = recurrence.endType === "count" ? recurrence.count : null;
-    const until = recurrence.endType === "until" && recurrence.until ? new Date(recurrence.until) : null;
+    const untilDate = recurrence.endType === "until" && recurrence.until ? recurrenceUntilDate(recurrence.until) : null;
     const instances = [];
     let matched = 0;
     let date = anchorDate;
@@ -84,7 +85,7 @@ export function expandEvent(event, from, to) {
             matched += 1;
             if (countLimit && matched > countLimit) break;
             const occurrenceStart = zonedDateTime(date, anchorMinute, timeZone);
-            if (until && occurrenceStart > until) break;
+            if (untilDate && date > untilDate) break;
             const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
             if (date >= queryStartDate && occurrenceStart < to && occurrenceEnd > from) {
                 instances.push({

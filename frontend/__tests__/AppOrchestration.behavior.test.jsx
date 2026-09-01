@@ -24,17 +24,17 @@ const mocks = vi.hoisted(() => ({
     authSwitchProfile: vi.fn(),
 }));
 
-vi.mock("../features/calendar/calendar.api.js", () => ({ calendarApi: { create: mocks.calendarCreate, displayOnly: mocks.calendarDisplayOnly, list: mocks.calendarList, remove: mocks.calendarRemove, update: mocks.calendarUpdate } }));
-vi.mock("../features/events/event.api.js", () => ({ eventApi: { create: mocks.eventCreate, list: mocks.eventList, remove: mocks.eventRemove, respond: mocks.eventRespond, search: mocks.eventSearch, update: mocks.eventUpdate } }));
-vi.mock("../features/insights/insight.api.js", () => ({ insightApi: { daily: mocks.insightDaily } }));
-vi.mock("../features/people/people.api.js", () => ({ peopleApi: { search: mocks.peopleSearch } }));
-vi.mock("../features/people/availability.api.js", () => ({ availabilityApi: { suggestions: mocks.availabilitySuggestions, conflicts: vi.fn().mockResolvedValue({ available: true, conflicts: [] }) } }));
-vi.mock("../features/profiles/profile.api.js", () => ({ profileApi: { list: mocks.profileList } }));
-vi.mock("../features/auth/auth.api.js", () => ({ authApi: { login: mocks.authLogin, logout: mocks.authLogout, session: mocks.authSession, switchProfile: mocks.authSwitchProfile } }));
+vi.mock("../src/features/calendar/calendar.api.js", () => ({ calendarApi: { create: mocks.calendarCreate, displayOnly: mocks.calendarDisplayOnly, list: mocks.calendarList, remove: mocks.calendarRemove, update: mocks.calendarUpdate } }));
+vi.mock("../src/features/events/event.api.js", () => ({ eventApi: { create: mocks.eventCreate, list: mocks.eventList, remove: mocks.eventRemove, respond: mocks.eventRespond, search: mocks.eventSearch, update: mocks.eventUpdate } }));
+vi.mock("../src/features/insights/insight.api.js", () => ({ insightApi: { daily: mocks.insightDaily } }));
+vi.mock("../src/features/people/people.api.js", () => ({ peopleApi: { search: mocks.peopleSearch } }));
+vi.mock("../src/features/people/availability.api.js", () => ({ availabilityApi: { suggestions: mocks.availabilitySuggestions, conflicts: vi.fn().mockResolvedValue({ available: true, conflicts: [] }) } }));
+vi.mock("../src/features/profiles/profile.api.js", () => ({ profileApi: { list: mocks.profileList } }));
+vi.mock("../src/features/auth/auth.api.js", () => ({ authApi: { login: mocks.authLogin, logout: mocks.authLogout, session: mocks.authSession, switchProfile: mocks.authSwitchProfile } }));
 
-import App from "../App.jsx";
-import { identityInitials } from "../shared/utils/identity.js";
-import { setProfileToken, setSessionToken } from "../shared/api/client.js";
+import App from "../src/App.jsx";
+import { identityInitials } from "../src/shared/utils/identity.js";
+import { setProfileToken, setSessionToken } from "../src/shared/api/client.js";
 
 const calendars = [
     { _id: "calendar-1", name: "My calendar", color: "#1a73e8", visible: true, isPrimary: true },
@@ -45,8 +45,8 @@ eventStart.setHours(10, 0, 0, 0);
 const eventEnd = new Date(eventStart.getTime() + 60 * 60 * 1000);
 const events = [{ _id: "event-1", calendarId: "calendar-1", title: "Design review", type: "event", startAt: eventStart.toISOString(), endAt: eventEnd.toISOString(), allDay: false, location: "Cedar" }];
 const insights = { workingDayMinutes: 480, totalScheduledMinutes: 60, meetingMinutes: 60, averageDailyMeetingMinutes: 10, remainingMinutes: 420, categories: [], calendars: [] };
-const participant = { _id: "person-1", name: "Sage", email: "sage@hackerrank.com", avatarColor: "#d93025" };
-const activeProfile = { _id: "profile-1", name: "River", email: "river@hackerrank.com", avatarColor: "#039be5" };
+const participant = { _id: "person-1", name: "Taylor Johnson", email: "taylor.johnson@calendar.com", avatarColor: "#d93025" };
+const activeProfile = { _id: "profile-1", name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5" };
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -69,8 +69,8 @@ beforeEach(() => {
     mocks.insightDaily.mockResolvedValue(insights);
     mocks.peopleSearch.mockResolvedValue([participant]);
     mocks.profileList.mockResolvedValue([activeProfile, participant]);
-    mocks.authSession.mockResolvedValue({ account: { _id: "account-1", name: "Calendar assessment", email: "calendar@hackerrank.com" } });
-    mocks.authLogin.mockResolvedValue({ account: { _id: "account-1", name: "Calendar assessment", email: "calendar@hackerrank.com" }, token: "workspace-token" });
+    mocks.authSession.mockResolvedValue({ account: { _id: "account-1", name: "Shared workspace", email: "workspace@calendar.com" } });
+    mocks.authLogin.mockResolvedValue({ account: { _id: "account-1", name: "Shared workspace", email: "workspace@calendar.com" }, token: "workspace-token" });
     mocks.authSwitchProfile.mockImplementation(async (profileId) => ({ profile: [activeProfile, participant].find((profile) => profile._id === profileId), token: `profile-token-${profileId}` }));
     mocks.authLogout.mockResolvedValue(null);
     mocks.availabilitySuggestions.mockResolvedValue({
@@ -81,19 +81,21 @@ beforeEach(() => {
 
 describe("application orchestration", () => {
     test("creates stable initials for neutral profile names", () => {
-        expect(["River", "Sky", "Sage", "Ember", "Nova"].map(identityInitials)).toEqual(["R", "S", "S", "E", "N"]);
+        expect(["Alex Morgan", "Jordan Smith", "Taylor Johnson", "Riley Parker", "Casey Bennett"].map(identityInitials)).toEqual(["AM", "JS", "TJ", "RP", "CB"]);
     });
 
-    test("signs in once before exposing the switchable assessment profiles", async () => {
+    test("signs in once before exposing the switchable profiles", async () => {
         localStorage.clear(); setSessionToken(""); setProfileToken("");
         render(<App />);
-        expect(await screen.findByRole("heading", { name: "Welcome to Calendar" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
         expect(screen.getByTestId("password-input")).toHaveAttribute("type", "text");
         expect(screen.getByTestId("password-input")).toHaveAttribute("autocomplete", "off");
         expect(screen.getByTestId("password-input")).toHaveClass("workspace-password-input");
-        await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-        expect(mocks.authLogin).toHaveBeenCalledWith("calendar@hackerrank.com", "password123");
-        expect(await screen.findByRole("heading", { name: "Who’s using Calendar?" })).toBeInTheDocument();
+        await userEvent.type(screen.getByTestId("email-input"), "workspace@calendar.com");
+        await userEvent.type(screen.getByTestId("password-input"), "password123");
+        await userEvent.click(screen.getByRole("button", { name: "Next" }));
+        expect(mocks.authLogin).toHaveBeenCalledWith("workspace@calendar.com", "password123");
+        expect(await screen.findByRole("heading", { name: "Choose an account" })).toBeInTheDocument();
         expect(localStorage.getItem("calendar-session-token")).toBe("workspace-token");
     });
 
@@ -104,13 +106,13 @@ describe("application orchestration", () => {
         mocks.profileList.mockReturnValue(new Promise((resolve) => { finishProfiles = resolve; }));
         render(<App />);
         expect(screen.getByRole("status", { name: "Opening Calendar" })).toBeInTheDocument();
-        expect(screen.queryByRole("heading", { name: "Welcome to Calendar" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("heading", { name: "Who’s using Calendar?" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Sign in" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Choose an account" })).not.toBeInTheDocument();
 
-        await act(async () => { finishSession({ account: { _id: "account-1", name: "Calendar assessment", email: "calendar@hackerrank.com" } }); });
+        await act(async () => { finishSession({ account: { _id: "account-1", name: "Shared workspace", email: "workspace@calendar.com" } }); });
         await waitFor(() => expect(mocks.profileList).toHaveBeenCalledTimes(1));
         expect(screen.getByRole("status", { name: "Opening Calendar" })).toBeInTheDocument();
-        expect(screen.queryByRole("heading", { name: "Who’s using Calendar?" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Choose an account" })).not.toBeInTheDocument();
 
         await act(async () => { finishProfiles([activeProfile, participant]); });
         expect(await screen.findByRole("button", { name: /Design review/ })).toBeInTheDocument();
@@ -131,32 +133,34 @@ describe("application orchestration", () => {
         localStorage.clear(); setSessionToken(""); setProfileToken("");
         mocks.authLogin.mockRejectedValueOnce(new Error("Email or password is incorrect."));
         render(<App />);
-        await userEvent.click(await screen.findByRole("button", { name: "Continue" }));
+        await userEvent.type(await screen.findByTestId("email-input"), "workspace@calendar.com");
+        await userEvent.type(screen.getByTestId("password-input"), "wrong-password");
+        await userEvent.click(screen.getByRole("button", { name: "Next" }));
         expect(await screen.findByRole("alert")).toHaveTextContent("Email or password is incorrect.");
-        expect(screen.getByRole("heading", { name: "Welcome to Calendar" })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     });
 
     test("enters through a profile picker and can switch profiles from the header", async () => {
         localStorage.removeItem("calendar-profile-id");
         render(<App />);
-        expect(await screen.findByRole("heading", { name: "Who’s using Calendar?" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Choose an account" })).toBeInTheDocument();
         expect(screen.queryByText("Product & engineering")).not.toBeInTheDocument();
         expect(screen.queryByText(/Demo profiles keep/i)).not.toBeInTheDocument();
-        await userEvent.click(await screen.findByRole("button", { name: "Continue as River" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Continue as Alex Morgan" }));
         expect(await screen.findByRole("button", { name: /Design review/ })).toBeInTheDocument();
         expect(localStorage.getItem("calendar-profile-id")).toBe(activeProfile._id);
-        await userEvent.click(screen.getByRole("button", { name: "River profile" }));
+        await userEvent.click(screen.getByRole("button", { name: "Alex Morgan profile" }));
         await userEvent.click(screen.getByRole("menuitem", { name: "Switch profile" }));
-        expect(await screen.findByRole("heading", { name: "Who’s using Calendar?" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Choose an account" })).toBeInTheDocument();
         expect(localStorage.getItem("calendar-profile-id")).toBeNull();
     });
 
     test("signs out directly from the active profile menu", async () => {
         render(<App />);
         await screen.findByRole("button", { name: /Design review/ });
-        await userEvent.click(screen.getByRole("button", { name: "River profile" }));
+        await userEvent.click(screen.getByRole("button", { name: "Alex Morgan profile" }));
         await userEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
-        expect(await screen.findByRole("heading", { name: "Welcome to Calendar" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
         expect(mocks.authLogout).toHaveBeenCalledTimes(1);
         expect(localStorage.getItem("calendar-profile-id")).toBeNull();
     });
@@ -167,14 +171,14 @@ describe("application orchestration", () => {
         render(<App />);
         expect(await screen.findByRole("alert")).toHaveTextContent("Profiles unavailable");
         await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-        expect(await screen.findByRole("button", { name: "Continue as River" })).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "Continue as Alex Morgan" })).toBeInTheDocument();
     });
 
     test("handles empty profiles and clears a stale saved profile", async () => {
         localStorage.setItem("calendar-profile-id", "profile-that-no-longer-exists");
         mocks.profileList.mockResolvedValue([]);
         render(<App />);
-        expect(await screen.findByText("No profiles are available.")).toBeInTheDocument();
+        expect(await screen.findByText("No accounts are available.")).toBeInTheDocument();
         await waitFor(() => expect(localStorage.getItem("calendar-profile-id")).toBeNull());
         expect(screen.queryByRole("button", { name: /Continue as/ })).not.toBeInTheDocument();
     });
@@ -182,7 +186,7 @@ describe("application orchestration", () => {
     test("keeps header menus exclusive and restores focus when Escape closes the profile menu", async () => {
         render(<App />);
         await screen.findByRole("button", { name: /Design review/ });
-        const profileButton = screen.getByRole("button", { name: "River profile" });
+        const profileButton = screen.getByRole("button", { name: "Alex Morgan profile" });
         await userEvent.click(profileButton);
         expect(screen.getByRole("menu", { name: "Profile menu" })).toBeInTheDocument();
         await userEvent.keyboard("{Escape}");
@@ -273,7 +277,9 @@ describe("application orchestration", () => {
         expect(screen.getByTestId("view-select")).toHaveTextContent("Month");
         await userEvent.click(screen.getByRole("button", { name: "Toggle sidebar" }));
         expect(localStorage.getItem("calendar-sidebar")).toBe("collapsed");
-        expect(screen.queryByTestId("create-event-button")).not.toBeInTheDocument();
+        const sidebar = document.querySelector(".sidebar");
+        expect(sidebar).toHaveAttribute("aria-hidden", "true");
+        expect(sidebar).toHaveAttribute("inert");
     });
 
     test("creates an event and refreshes events and insights", async () => {
@@ -293,16 +299,16 @@ describe("application orchestration", () => {
         await screen.findByRole("button", { name: /Design review/ });
         const peopleSearch = screen.getByRole("textbox", { name: "Search for people" });
         await userEvent.click(peopleSearch);
-        await userEvent.type(peopleSearch, "Sage");
-        await userEvent.click(await screen.findByRole("option", { name: /Sage/ }));
+        await userEvent.type(peopleSearch, "Taylor Johnson");
+        await userEvent.click(await screen.findByRole("option", { name: /Taylor Johnson/ }));
         await userEvent.click(screen.getByRole("button", { name: "Suggested times" }));
         expect(await screen.findByRole("dialog", { name: "Suggested times" })).toBeInTheDocument();
         await waitFor(() => expect(mocks.availabilitySuggestions).toHaveBeenCalledWith(expect.objectContaining({ participantIds: ["person-1"], durationMinutes: 30 })));
         await userEvent.click(await screen.findByRole("button", { name: /2 available/ }));
-        expect(screen.getByTestId("event-title-input")).toHaveValue("Meeting with Sage");
-        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Sage");
+        expect(screen.getByTestId("event-title-input")).toHaveValue("Meeting with Taylor Johnson");
+        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Taylor Johnson");
         await userEvent.click(screen.getByTestId("save-event-button"));
-        await waitFor(() => expect(mocks.eventCreate).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Sage"], startAt: "2026-08-28T05:30:00.000Z", endAt: "2026-08-28T06:00:00.000Z" })));
+        await waitFor(() => expect(mocks.eventCreate).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Taylor Johnson"], startAt: "2026-08-28T05:30:00.000Z", endAt: "2026-08-28T06:00:00.000Z" })));
     });
 
     test("opens another person's comparison event as read-only details", async () => {
@@ -315,11 +321,11 @@ describe("application orchestration", () => {
         await screen.findByRole("button", { name: /Design review/ });
         const peopleSearch = screen.getByRole("textbox", { name: "Search for people" });
         await userEvent.click(peopleSearch);
-        await userEvent.type(peopleSearch, "Sage");
-        await userEvent.click(await screen.findByRole("option", { name: /Sage/ }));
-        await userEvent.click(await screen.findByRole("button", { name: /Design critique.*Sage/ }));
+        await userEvent.type(peopleSearch, "Taylor Johnson");
+        await userEvent.click(await screen.findByRole("option", { name: /Taylor Johnson/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /Design critique.*Taylor Johnson/ }));
         expect(screen.getByRole("dialog")).toHaveTextContent("Design critique");
-        expect(screen.getByRole("dialog")).toHaveTextContent("Organized by Sage");
+        expect(screen.getByRole("dialog")).toHaveTextContent("Organized by Taylor Johnson");
         expect(screen.getByRole("dialog")).toHaveTextContent("Studio");
         expect(screen.getByRole("dialog")).toHaveTextContent("Review the new flow.");
         expect(screen.queryByRole("button", { name: "Edit event" })).not.toBeInTheDocument();
@@ -328,7 +334,7 @@ describe("application orchestration", () => {
     });
 
     test("responds to an invitation in place and preserves the preview", async () => {
-        const invitation = { ...events[0], editable: false, organizer: "Sage", responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 0, declined: 0, tentative: 0 }, participantPeople: [{ ...activeProfile, responseStatus: "needsAction" }] };
+        const invitation = { ...events[0], editable: false, organizer: "Taylor Johnson", responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 0, declined: 0, tentative: 0 }, participantPeople: [{ ...activeProfile, responseStatus: "needsAction" }] };
         mocks.eventList.mockResolvedValue([invitation]);
         mocks.eventRespond.mockResolvedValue({ ...invitation, responseStatus: "accepted", respondedAt: new Date().toISOString(), responseSummary: { needsAction: 0, accepted: 1, declined: 0, tentative: 0 }, participantPeople: [{ ...activeProfile, responseStatus: "accepted" }] });
         render(<App />);
@@ -342,7 +348,7 @@ describe("application orchestration", () => {
     });
 
     test("keeps the invitation open and reports response failures", async () => {
-        const invitation = { ...events[0], editable: false, organizer: "Sage", responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 0, declined: 0, tentative: 0 }, participantPeople: [{ ...activeProfile, responseStatus: "needsAction" }] };
+        const invitation = { ...events[0], editable: false, organizer: "Taylor Johnson", responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 0, declined: 0, tentative: 0 }, participantPeople: [{ ...activeProfile, responseStatus: "needsAction" }] };
         mocks.eventList.mockResolvedValue([invitation]);
         mocks.eventRespond.mockRejectedValue(new Error("Response could not be saved"));
         render(<App />);

@@ -237,7 +237,7 @@ export default function App() {
         };
         restore();
         return () => { active = false; };
-    }, []); // Session and profiles are restored together to avoid intermediate-screen flashes.
+    }, []);
     const activeProfile = profiles?.find((profile) => String(profile._id) === selectedProfileId);
     useEffect(() => {
         if (profiles === null) return;

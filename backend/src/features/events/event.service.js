@@ -3,7 +3,8 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { calendarRepository } from "../calendars/calendar.repository.js";
 import { personService } from "../people/person.service.js";
 import { eventRepository } from "./event.repository.js";
-import { expandEvents, isRecurring, responseForOccurrence } from "./recurrence.js";
+import { expandEvents, isRecurring, recurrenceUntilDate, responseForOccurrence } from "./recurrence.js";
+import { localDateKey } from "../../shared/utils/time-zone.js";
 
 const responseStatuses = ["needsAction", "accepted", "declined", "tentative"];
 
@@ -14,7 +15,10 @@ function ensureChronology(event) {
 }
 
 function ensureRecurrence(event) {
-    if (event.recurrence?.frequency !== "none" && event.recurrence?.endType === "until" && event.recurrence.until && new Date(event.recurrence.until) < new Date(event.startAt)) {
+    const recurrence = event.recurrence;
+    if (!recurrence || recurrence.frequency === "none" || recurrence.endType !== "until" || !recurrence.until) return;
+    const startDate = localDateKey(new Date(event.startAt), recurrence.timeZone || "UTC");
+    if (recurrenceUntilDate(recurrence.until) < startDate) {
         throw new AppError(400, "INVALID_RECURRENCE_END", "The recurrence end date cannot be before the event starts.");
     }
 }
@@ -29,6 +33,26 @@ async function ensureCalendar(calendarId, profileId) {
     if (!mongoose.isValidObjectId(calendarId) || !(await calendarRepository.findById(calendarId, profileId))) {
         throw new AppError(422, "INVALID_CALENDAR", "The selected calendar does not exist.");
     }
+}
+
+const recurrenceFields = ["frequency", "interval", "daysOfWeek", "monthlyMode", "endType", "count", "until", "timeZone"];
+
+const sameInstant = (left, right) => new Date(left).getTime() === new Date(right).getTime();
+
+function recurrenceSignature(recurrence) {
+    const value = recurrence || {};
+    return JSON.stringify(recurrenceFields.map((field) => {
+        if (field === "until") return value.until ? new Date(value.until).getTime() : null;
+        if (field === "daysOfWeek") return [...(value.daysOfWeek || [])].sort();
+        return value[field] ?? null;
+    }));
+}
+
+function hasScheduleChange(input, existing) {
+    if ("startAt" in input && !sameInstant(input.startAt, existing.startAt)) return true;
+    if ("endAt" in input && !sameInstant(input.endAt, existing.endAt)) return true;
+    if ("allDay" in input && Boolean(input.allDay) !== Boolean(existing.allDay)) return true;
+    return "recurrence" in input && recurrenceSignature(input.recurrence) !== recurrenceSignature(existing.recurrence);
 }
 
 const plainEvent = (event) => event?.toObject ? event.toObject() : event;
@@ -115,7 +139,7 @@ export const eventService = {
             merged = await normalizeParticipants(merged);
             input = { ...input, participants: merged.participants, participantIds: merged.participantIds };
         }
-        const scheduleChanged = ["startAt", "endAt", "allDay", "recurrence"].some((field) => field in input);
+        const scheduleChanged = hasScheduleChange(input, existing);
         if (scheduleChanged || "participantIds" in input) {
             input = { ...input, attendeeResponses: reconcileResponses(merged.participantIds, existing.attendeeResponses, scheduleChanged), ...(scheduleChanged ? { recurrenceResponseOverrides: [] } : {}) };
             merged = { ...merged, attendeeResponses: input.attendeeResponses };

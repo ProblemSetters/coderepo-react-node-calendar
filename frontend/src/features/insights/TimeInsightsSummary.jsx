@@ -19,7 +19,7 @@ export function TimeInsightsSummary({ cursor, error = "", insights, loading = fa
                 {loading ? <div className="insight-summary-skeleton" aria-label="Loading time insights" role="status" /> : error ? <div className="insight-summary-error" role="alert"><span>Insights unavailable</span><button onClick={onRetry}>Retry</button></div> : <>
                     <p className="insight-summary-copy">{formatInsightDuration(meetingMinutes)} in meetings <span>(avg: {formatInsightDuration(averageMinutes)})</span></p>
                     <div className="insight-progress" aria-label={`${formatInsightDuration(meetingMinutes)} in meetings`} role="img"><span style={{ width: `${progress}%` }} /></div>
-                    <button className="more-insights-button" onClick={onOpen}><MaterialIcon size={20}>insights</MaterialIcon><span>More insights</span></button>
+                    <button className="more-insights-button" data-testid="more-insights" onClick={onOpen}><MaterialIcon size={20}>insights</MaterialIcon><span>More insights</span></button>
                 </>}
             </div>}
         </section>

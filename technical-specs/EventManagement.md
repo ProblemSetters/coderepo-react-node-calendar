@@ -48,9 +48,17 @@ Returns `204` or `404 EVENT_NOT_FOUND`.
 
 | `data-testid` | Purpose |
 | --- | --- |
-| `create-event-button` | Open event creation. |
-| `event-title-input` | Enter or edit the event title. |
-| `save-event-button` | Persist a valid event. |
+| `create-event-button` | Open the Create menu. |
+| `event-title-input` | Enter the event title. |
+| `repeat-select` | Open the repeat options. |
+| `save-event-button` | Save the event. |
+| `people-search-input` | Search the guest directory. |
+| `person-option-{personId}` | Select a guest from the results. |
+| `remove-person-{personId}` | Remove a selected guest. |
+| `preview-edit` | Open the editor from the event preview. |
+| `preview-delete` | Delete from the event preview. |
+| `preview-close` | Close the event preview. |
+| `rsvp-{accepted\|tentative\|declined}` | Answer an invitation. |
 
 ## Validation
 

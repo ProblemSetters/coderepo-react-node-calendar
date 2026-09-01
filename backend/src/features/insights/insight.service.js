@@ -7,7 +7,14 @@ const trackedTypes = new Set(["event", "appointmentSchedule", "focusTime", "task
 
 function clippedMinutes(event, from, to) {
     if (!trackedTypes.has(event.type)) return 0;
-    if (event.allDay) return event.type === "outOfOffice" ? workingDayMinutes : 0;
+    if (event.allDay) {
+        if (event.type !== "outOfOffice") return 0;
+        const overlapStart = Math.max(new Date(event.startAt).getTime(), from.getTime());
+        const overlapEnd = Math.min(new Date(event.endAt).getTime(), to.getTime());
+        if (overlapEnd <= overlapStart) return 0;
+        const coveredDays = Math.min(1, (overlapEnd - overlapStart) / dayMilliseconds);
+        return Math.round(workingDayMinutes * coveredDays);
+    }
     const start = Math.max(new Date(event.startAt).getTime(), from.getTime());
     const end = Math.min(new Date(event.endAt).getTime(), to.getTime());
     return Math.max(0, Math.round((end - start) / 60000));
@@ -29,11 +36,11 @@ const categoryMetadata = [
 ];
 
 export const insightService = {
-    async daily({ from, to, calendarIds }) {
+    async daily({ from, to, calendarIds }, profileId) {
         const historyFrom = new Date(from.getTime() - 6 * dayMilliseconds);
         let [events, calendars] = await Promise.all([
-            insightRepository.findEvents(historyFrom, to, calendarIds),
-            insightRepository.findCalendars(calendarIds),
+            insightRepository.findEvents(historyFrom, to, calendarIds, profileId),
+            insightRepository.findCalendars(calendarIds, profileId),
         ]);
         events = expandEvents(events, historyFrom, to);
         const calendarLookup = new Map(calendars.map((calendar) => [String(calendar._id), calendar]));

@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
-import { addDays, dateKey, formatTime, formatTimeZoneOffset, isSameDay } from "../../shared/utils/date.js";
+import { addDays, dateKey, formatTime, formatTimeZoneOffset, isSameDay, startOfWeek } from "../../shared/utils/date.js";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { getEventColumnGeometry, layoutTimedEvents } from "./event-layout.js";
 import { foregroundForColor, overlapColor } from "./calendar-colors.js";
 
-const hourHeight = 64;
+export const hourHeight = 48;
 export const timeGridLayers = Object.freeze({ eventHover: 50, currentTime: 60 });
 const cssNumber = (value) => Number(value.toFixed(4));
 
@@ -12,7 +12,7 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
     const scrollReference = useRef(null);
     const headerReference = useRef(null);
     const today = new Date();
-    const start = days === 1 ? new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()) : (() => { const date = new Date(cursor); date.setDate(date.getDate() - ((date.getDay() + 6) % 7)); date.setHours(0, 0, 0, 0); return date; })();
+    const start = days === 1 ? new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()) : startOfWeek(cursor);
     const dates = Array.from({ length: days }, (_, index) => addDays(start, index));
     const overlapsDate = (event, date) => new Date(event.startAt) < addDays(new Date(date.getFullYear(), date.getMonth(), date.getDate()), 1) && new Date(event.endAt) > new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const workingLocations = events.filter((event) => event.allDay && event.type === "workingLocation");
@@ -24,7 +24,7 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
         const viewport = scrollReference.current;
         if (!viewport) return;
         const now = new Date();
-        const viewStart = days === 1 ? new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()) : (() => { const date = new Date(cursor); date.setDate(date.getDate() - ((date.getDay() + 6) % 7)); date.setHours(0, 0, 0, 0); return date; })();
+        const viewStart = days === 1 ? new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()) : startOfWeek(cursor);
         const containsToday = now >= viewStart && now < addDays(viewStart, days);
         const targetHour = containsToday ? Math.max(0, now.getHours() - 2) : 7;
         viewport.scrollTop = targetHour * hourHeight;
@@ -35,16 +35,16 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
                 <div className="timezone-heading">{formatTimeZoneOffset(cursor)}</div>
                 {dates.map((date) => {
                     const location = workingLocations.find((event) => overlapsDate(event, date));
-                    return <div key={dateKey(date)} className={`day-heading ${isSameDay(date, today) ? "today" : ""}`}>
+                    return <div key={dateKey(date)} className={`day-heading ${isSameDay(date, today) ? "today" : ""}`} data-testid={`calendar-day-${dateKey(date)}`}>
                         <button className="day-heading-date" aria-label={`Create event on ${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`} onClick={() => { const startAt = new Date(date); startAt.setHours(9, 0, 0, 0); onCreate(startAt); }}><span>{date.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{date.getDate()}</strong></button>
                         {location && <button className="day-location-chip" onClick={() => onEventSelect(location)} aria-label={`Working location: ${location.title}`}><MaterialIcon size={14}>business</MaterialIcon><span>{location.title}</span></button>}
                     </div>;
                 })}
                 <div className="all-day-label" aria-hidden="true" />
-                {dates.map((date) => <div className="all-day-cell" key={`all-${dateKey(date)}`}>{allDayEvents.filter((event) => overlapsDate(event, date)).map((event) => { const background = colorFor(event); const filled = !event.responseStatus || event.responseStatus === "accepted"; return <button key={event.occurrenceKey || event._id} className="all-day-event" data-item-type={event.type || "event"} data-response-status={event.responseStatus} style={{ "--event-color": background, backgroundColor: filled ? background : "#fff", color: filled ? foregroundForColor(background) : background, borderColor: background, borderWidth: filled ? undefined : 1 }} onClick={() => onEventSelect(event)}>{event.type === "outOfOffice" && <MaterialIcon className="out-of-office-icon" size={15}>event_busy</MaterialIcon>}<span>{event.title}</span></button>; })}</div>)}
+                {dates.map((date) => <div className="all-day-cell" key={`all-${dateKey(date)}`}>{allDayEvents.filter((event) => overlapsDate(event, date)).map((event) => { const background = colorFor(event); const filled = !event.responseStatus || event.responseStatus === "accepted"; return <button key={event.occurrenceKey || event._id} data-testid={`all-day-chip-${event._id}`} className="all-day-event" data-item-type={event.type || "event"} data-response-status={event.responseStatus} style={{ "--event-color": background, backgroundColor: filled ? background : "var(--surface)", color: filled ? foregroundForColor(background) : background, borderColor: background, borderWidth: filled ? undefined : 1 }} onClick={() => onEventSelect(event)}>{event.type === "outOfOffice" && <MaterialIcon className="out-of-office-icon" size={15}>event_busy</MaterialIcon>}<span>{event.title}</span></button>; })}</div>)}
             </div>
             <div className="time-view-scroll" ref={scrollReference} onScroll={(event) => { if (headerReference.current) headerReference.current.scrollLeft = event.currentTarget.scrollLeft; }}>
-                <div className="time-grid" style={{ gridTemplateColumns: `80px repeat(${days}, minmax(130px, 1fr))`, height: `${24 * hourHeight}px` }}>
+                <div className="time-grid" style={{ gridTemplateColumns: `80px repeat(${days}, minmax(130px, 1fr))`, height: `${24 * hourHeight}px`, "--hour-row": `${hourHeight}px` }}>
                     <div className="time-axis">{Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ top: `${hour * hourHeight - 7}px` }}>{hour === 0 ? "" : new Date(2000, 0, 1, hour).toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}</span>)}</div>
                     {dates.map((date) => {
                         const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -68,10 +68,10 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
                                 const density = actualDurationMinutes <= 30 ? "micro" : actualDurationMinutes < 60 ? "compact" : "comfortable";
                                 const background = colorFor(event);
                                 const filled = !event.responseStatus || event.responseStatus === "accepted";
-                                const displayBackground = filled ? overlapColor(background, column, columns) : "#fff";
+                                const displayBackground = filled ? overlapColor(background, column, columns) : "var(--surface)";
                                 const eventSummary = `${event.title}, ${formatTime(event.startAt)} – ${formatTime(event.endAt)}${event.location ? `, ${event.location}` : ""}`;
                                 const overlapEdge = columns === 1 ? "single" : column === 0 ? "start" : column === columns - 1 ? "end" : "middle";
-                                return <button aria-label={eventSummary} key={event.occurrenceKey || event._id} className="timed-event" data-crowded={columns >= 4 ? "true" : "false"} data-density={density} data-item-type={event.type || "event"} data-overlap={columns > 1 ? "true" : "false"} data-overlap-column={column} data-overlap-count={columns} data-overlap-edge={overlapEdge} data-response-status={event.responseStatus} style={{ "--event-base-layer": geometry.zIndex, "--event-color": background, backgroundColor: displayBackground, color: filled ? foregroundForColor(displayBackground) : background, borderColor: filled ? displayBackground : background, borderWidth: filled ? undefined : 1, top: `${rawTop + 2}px`, height: `${Math.max(20, rawHeight - 4)}px`, left: eventLeft, width: eventWidth, zIndex: geometry.zIndex }} onClick={(clickEvent) => { clickEvent.stopPropagation(); onEventSelect(event.originalEvent || event); }}>{event.type === "outOfOffice" && <MaterialIcon className="out-of-office-icon" size={16}>event_busy</MaterialIcon>}<strong>{event.title}</strong><span>{formatTime(event.startAt)} – {formatTime(event.endAt)}{event.location ? `, ${event.location}` : ""}</span></button>;
+                                return <button aria-label={eventSummary} data-testid={`event-chip-${event._id}`} key={event.occurrenceKey || event._id} className="timed-event" data-crowded={columns >= 4 ? "true" : "false"} data-density={density} data-item-type={event.type || "event"} data-overlap={columns > 1 ? "true" : "false"} data-overlap-column={column} data-overlap-count={columns} data-overlap-edge={overlapEdge} data-response-status={event.responseStatus} style={{ "--event-base-layer": geometry.zIndex, "--event-color": background, backgroundColor: displayBackground, color: filled ? foregroundForColor(displayBackground) : background, borderColor: filled ? displayBackground : background, borderWidth: filled ? undefined : 1, top: `${rawTop + 2}px`, height: `${Math.max(20, rawHeight - 4)}px`, left: eventLeft, width: eventWidth, zIndex: geometry.zIndex }} onClick={(clickEvent) => { clickEvent.stopPropagation(); onEventSelect(event.originalEvent || event); }}>{event.type === "outOfOffice" && <MaterialIcon className="out-of-office-icon" size={16}>event_busy</MaterialIcon>}<strong>{event.title}</strong><span>{formatTime(event.startAt)} – {formatTime(event.endAt)}{event.location ? `, ${event.location}` : ""}</span></button>;
                             })}
                         </div>;
                     })}

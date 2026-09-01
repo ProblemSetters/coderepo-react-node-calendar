@@ -14,7 +14,7 @@ export function addDays(value, amount) {
 
 export function startOfWeek(value) {
     const date = startOfDay(value);
-    return addDays(date, -((date.getDay() + 6) % 7));
+    return addDays(date, -date.getDay());
 }
 
 export function startOfMonth(value) {
@@ -61,11 +61,6 @@ export function formatTimeZoneOffset(value = new Date()) {
 export function dateKey(value) {
     const date = new Date(value);
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-export function toDateTimeInput(value) {
-    const date = new Date(value);
-    return `${dateKey(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function toDateInput(value) {

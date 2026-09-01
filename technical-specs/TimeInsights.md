@@ -23,3 +23,10 @@ The sidebar refreshes the endpoint on date changes, visible-calendar changes, an
 ## Verification
 
 Backend integration tests cover category math, calendar breakdowns, ignored working locations, range validation, and identifier validation. Frontend behavioral tests cover summary formatting, drawer grouping, focus-time action, and Google-style day-event width.
+
+## Testing identifiers
+
+| `data-testid` | Purpose |
+| --- | --- |
+| `more-insights` | Open the Time Insights drawer. |
+| `schedule-focus-time` | Create focus time from the drawer. |

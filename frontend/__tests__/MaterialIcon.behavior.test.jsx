@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
-import { MaterialIcon } from "../shared/components/MaterialIcon.jsx";
+import { MaterialIcon } from "../src/shared/components/MaterialIcon.jsx";
 
 const applicationIcons = [
     "add", "arrow_back", "arrow_drop_down", "arrow_drop_up", "business", "check", "check_circle",

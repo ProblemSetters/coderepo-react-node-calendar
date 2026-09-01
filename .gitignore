@@ -11,3 +11,6 @@ build/
 *.log
 .DS_Store
 output/*.xml
+
+CLAUDE.md
+.claude/

@@ -106,7 +106,7 @@ export function RepeatSelector({ startAt, value, onChange }) {
         return () => { document.removeEventListener("keydown", keyboard); previousFocus?.focus?.(); };
     }, [customOpen]);
     return <>
-        <div className="repeat-select"><SelectMenu ariaLabel="Repeat" value={selected} onChange={choose} options={[...presets.map(({ value, label }) => ({ value, label })), { value: "custom", label: customOptionLabel }]} /></div>
+        <div className="repeat-select" data-testid="repeat-select"><SelectMenu ariaLabel="Repeat" value={selected} onChange={choose} options={[...presets.map(({ value, label }) => ({ value, label })), { value: "custom", label: customOptionLabel }]} /></div>
         {customOpen && <div className="recurrence-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCustomOpen(false); }}><section aria-labelledby="custom-recurrence-title" aria-modal="true" className="recurrence-dialog" ref={dialog} role="dialog">
             <h3 id="custom-recurrence-title">Custom recurrence</h3>
             <div className="recurrence-line"><span>Repeat every</span><NumberStepper ariaLabel="Repeat interval" max={99} value={custom.interval} onChange={(interval) => update({ interval })} /><SelectMenu ariaLabel="Repeat frequency" value={custom.frequency} onChange={(frequency) => update({ frequency, daysOfWeek: frequency === "weekly" && !custom.daysOfWeek.length ? [date.getDay()] : custom.daysOfWeek })} options={frequencyOptions} /></div>

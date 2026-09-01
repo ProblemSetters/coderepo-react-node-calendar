@@ -9,7 +9,6 @@
         "start": "bun src/index.js",
         "dev": "bun --watch src/index.js",
         "seed": "bun src/scripts/seed.js",
-        "colors:migrate": "node src/scripts/update-demo-colors.js",
         "test": "cross-env NODE_ENV=test CALENDAR_TEST_AUTH_BYPASS=true NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
         "test:coverage": "cross-env NODE_ENV=test CALENDAR_TEST_AUTH_BYPASS=true NODE_OPTIONS=--experimental-vm-modules jest --coverage --runInBand"
     },

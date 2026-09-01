@@ -10,15 +10,15 @@ export function MiniCalendar({ cursor, month, onMonthChange, onSelect }) {
             <div className="mini-calendar-header">
                 <strong>{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
                 <div>
-                    <button className="icon-button" aria-label="Previous month" onClick={() => onMonthChange(addMonths(month, -1))}><MaterialIcon size={18}>chevron_left</MaterialIcon></button>
-                    <button className="icon-button" aria-label="Next month" onClick={() => onMonthChange(addMonths(month, 1))}><MaterialIcon size={18}>chevron_right</MaterialIcon></button>
+                    <button className="icon-button" data-testid="mini-calendar-previous" aria-label="Previous month" onClick={() => onMonthChange(addMonths(month, -1))}><MaterialIcon size={18}>chevron_left</MaterialIcon></button>
+                    <button className="icon-button" data-testid="mini-calendar-next" aria-label="Next month" onClick={() => onMonthChange(addMonths(month, 1))}><MaterialIcon size={18}>chevron_right</MaterialIcon></button>
                 </div>
             </div>
             <div className="mini-grid" role="grid">
-                {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => <span className="mini-weekday" key={`${day}-${index}`}>{day}</span>)}
+                {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <span className="mini-weekday" key={`${day}-${index}`}>{day}</span>)}
                 {Array.from({ length: 42 }, (_, index) => addDays(start, index)).map((date) => {
                     const key = dateKey(date);
-                    return <button key={key} data-date={key} className={`mini-date ${date.getMonth() !== month.getMonth() ? "outside" : ""} ${key === todayKey ? "today" : ""} ${key === selectedKey ? "selected" : ""}`} aria-label={date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} onClick={() => onSelect(date)}>{date.getDate()}</button>;
+                    return <button key={key} data-date={key} data-testid={`mini-calendar-day-${key}`} className={`mini-date ${date.getMonth() !== month.getMonth() ? "outside" : ""} ${key === todayKey ? "today" : ""} ${key === selectedKey ? "selected" : ""}`} aria-label={date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} onClick={() => onSelect(date)}>{date.getDate()}</button>;
                 })}
             </div>
         </section>

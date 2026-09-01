@@ -3,7 +3,7 @@ import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { formatInsightDate, formatInsightDuration } from "./insight-format.js";
 
 function buildGradient(items, total) {
-    if (!total) return "conic-gradient(#e8eaed 0 100%)";
+    if (!total) return "conic-gradient(var(--border-strong) 0 100%)";
     let cursor = 0;
     const stops = [];
     for (const item of items.filter(({ minutes }) => minutes > 0)) {
@@ -11,7 +11,7 @@ function buildGradient(items, total) {
         stops.push(`${item.color} ${cursor}% ${end}%`);
         cursor = end;
     }
-    if (cursor < 100) stops.push(`#e8eaed ${cursor}% 100%`);
+    if (cursor < 100) stops.push(`var(--border-strong) ${cursor}% 100%`);
     return `conic-gradient(${stops.join(", ")})`;
 }
 
@@ -66,7 +66,7 @@ export function TimeInsightsDrawer({ cursor, insights, loading = false, onClose,
                         {items.map((item) => <div className="insight-metric" key={item.key || item.calendarId}><i style={{ backgroundColor: item.color }} /><span>{item.label || item.name}</span><strong>{formatInsightDuration(item.minutes)}</strong></div>)}
                         <div className="insight-metric"><i className="remaining" /><span>Remaining time</span><strong>{formatInsightDuration(insights?.remainingMinutes || 0)}</strong></div>
                     </div>
-                    <button className="schedule-focus-button" onClick={onScheduleFocus}><MaterialIcon size={20}>headphones</MaterialIcon><span>Schedule focus time</span></button>
+                    <button className="schedule-focus-button" data-testid="schedule-focus-time" onClick={onScheduleFocus}><MaterialIcon size={20}>headphones</MaterialIcon><span>Schedule focus time</span></button>
                 </>}
             </div>
         </aside>

@@ -18,36 +18,24 @@ setup_env() {
     done
 }
 
-find_mongod() {
-    MONGOD_BIN="$(command -v mongod || true)"
-    BREW_BIN="$(command -v brew || true)"
-    if [ -z "$BREW_BIN" ] && [ -x "/opt/homebrew/bin/brew" ]; then
-        BREW_BIN="/opt/homebrew/bin/brew"
-    fi
-    if [ -z "$MONGOD_BIN" ] && [ -n "$BREW_BIN" ]; then
-        MONGOD_PREFIX="$($BREW_BIN --prefix mongodb-community 2>/dev/null || true)"
-        if [ -n "$MONGOD_PREFIX" ]; then MONGOD_BIN="$MONGOD_PREFIX/bin/mongod"; fi
-    fi
+MONGO_HOST="127.0.0.1"
+MONGO_PORT="27017"
+
+mongo_is_reachable() {
+    (exec 3<>"/dev/tcp/${MONGO_HOST}/${MONGO_PORT}") >/dev/null 2>&1
 }
 
 check_mongo() {
-    if pgrep -x "mongod" >/dev/null 2>&1; then
-        log_info "MongoDB is already running"
+    if mongo_is_reachable; then
+        log_info "MongoDB is already reachable on ${MONGO_PORT}"
         return
     fi
-    find_mongod
-    if [ ! -x "$MONGOD_BIN" ]; then
-        log_error "MongoDB is required. Install it with: brew tap mongodb/brew && brew install mongodb-community"
+    log_warn "MongoDB is not reachable; starting it"
+    mongod --config /etc/mongod.conf --fork >/dev/null 2>&1 || true
+    mongo_is_reachable || {
+        log_error "MongoDB is required on ${MONGO_HOST}:${MONGO_PORT}. Start it, then run this again."
         exit 1
-    fi
-    log_warn "MongoDB is not running; starting it"
-    if [ -n "$BREW_BIN" ]; then "$BREW_BIN" services start mongodb-community >/dev/null 2>&1 || true; fi
-    sleep 1
-    if ! pgrep -x "mongod" >/dev/null 2>&1; then
-        mkdir -p .mongodb/data
-        "$MONGOD_BIN" --dbpath .mongodb/data --logpath .mongodb/mongod.log --fork >/dev/null 2>&1
-    fi
-    pgrep -x "mongod" >/dev/null 2>&1 || { log_error "MongoDB could not be started"; exit 1; }
+    }
 }
 
 seed_signature() {

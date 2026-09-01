@@ -27,6 +27,28 @@ describe("recurrence expansion", () => {
         expect(expandEvents([weekdays], new Date("2026-08-28Z"), new Date("2026-09-02Z")).map((item) => new Date(item.startAt).getUTCDay())).toEqual([5, 1, 2]);
     });
 
+    test("includes the chosen end date because Ends on is inclusive", () => {
+        const daily = event({
+            startAt: new Date("2026-08-24T13:00:00.000Z"),
+            endAt: new Date("2026-08-24T14:00:00.000Z"),
+            recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], monthlyMode: "ordinalWeekday", endType: "until", until: new Date("2026-08-26T00:00:00.000Z"), timeZone: "America/New_York" },
+        });
+        const days = expandEvents([daily], new Date("2026-08-01Z"), new Date("2026-09-10Z"))
+            .map((item) => new Date(item.startAt).toISOString().slice(0, 10));
+        expect(days).toEqual(["2026-08-24", "2026-08-25", "2026-08-26"]);
+    });
+
+    test("counts a two-week interval from the week boundary, not the anchor weekday", () => {
+        const biweekly = event({
+            startAt: new Date("2026-01-07T13:00:00.000Z"),
+            endAt: new Date("2026-01-07T14:00:00.000Z"),
+            recurrence: { frequency: "weekly", interval: 2, daysOfWeek: [1, 3], monthlyMode: "ordinalWeekday", endType: "never", timeZone: "UTC" },
+        });
+        const days = expandEvents([biweekly], new Date("2026-01-01Z"), new Date("2026-01-20Z"))
+            .map((item) => new Date(item.startAt).toISOString().slice(0, 10));
+        expect(days).toEqual(["2026-01-07", "2026-01-19"]);
+    });
+
     test("resolves exact overrides before the latest following override and series default", () => {
         const personId = "person-1";
         const occurrence = new Date("2026-09-04T13:00:00Z");

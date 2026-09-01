@@ -112,12 +112,12 @@ export function PeoplePicker({
     return <div className={`people-picker ${className}`.trim()} ref={root}>
         <div className={`people-search ${open ? "active" : ""}`}>
             {showLeadingIcon && <MaterialIcon size={20}>group</MaterialIcon>}
-            <label><span className="sr-only">{inputLabel}</span><input aria-activedescendant={open && available[activeIndex] ? `${instanceId}-person-option-${available[activeIndex]._id}` : undefined} aria-autocomplete="list" aria-controls={resultsId} aria-expanded={open} autoComplete="off" className="people-search-input" placeholder={placeholder} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); setOpen(true); }} onClick={() => setOpen(true)} onFocus={() => setOpen(true)} onKeyDown={handleSearchKeyboard} /></label>
+            <label><span className="sr-only">{inputLabel}</span><input aria-activedescendant={open && available[activeIndex] ? `${instanceId}-person-option-${available[activeIndex]._id}` : undefined} aria-autocomplete="list" aria-controls={resultsId} aria-expanded={open} autoComplete="off" className="people-search-input" data-testid="people-search-input" placeholder={placeholder} value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); setOpen(true); }} onClick={() => setOpen(true)} onFocus={() => setOpen(true)} onKeyDown={handleSearchKeyboard} /></label>
             {query && <button className="icon-button" type="button" aria-label="Clear people search" onClick={() => setQuery("")}><MaterialIcon size={18}>close</MaterialIcon></button>}
             {open && <div className="people-results" id={resultsId} ref={resultsList} role="listbox" aria-label="People" style={resultsPosition || { visibility: "hidden" }}>
                 {loading && <p role="status">Finding people…</p>}
                 {!loading && error && <div className="people-state" role="alert"><span>{error}</span><button type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div>}
-                {!loading && !error && available.map((person, index) => <button className={index === activeIndex ? "active" : ""} data-option-index={index} id={`${instanceId}-person-option-${person._id}`} key={person._id} role="option" type="button" tabIndex={-1} aria-selected={index === activeIndex} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActiveIndex(index)} onClick={() => add(person)}>
+                {!loading && !error && available.map((person, index) => <button className={index === activeIndex ? "active" : ""} data-option-index={index} id={`${instanceId}-person-option-${person._id}`} data-testid={`person-option-${person._id}`} key={person._id} role="option" type="button" tabIndex={-1} aria-selected={index === activeIndex} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActiveIndex(index)} onClick={() => add(person)}>
                     <span className="person-avatar" style={{ backgroundColor: person.avatarColor }}>{identityInitials(person.name)}</span>
                     <span><strong>{person.name}</strong><small>{person.email}</small></span>
                 </button>)}
@@ -128,7 +128,7 @@ export function PeoplePicker({
             {selectedPeople.map((person, index) => <div className="selected-person" key={`${identity(person)}-${index}`}>
                 <span className="person-avatar" style={{ backgroundColor: person.avatarColor || "#5f6368" }}>{identityInitials(person.name)}</span>
                 <span title={person.email || person.name}>{person.name}</span>
-                <button type="button" aria-label={`Remove ${person.name}`} onClick={() => remove(person)}><MaterialIcon size={16}>close</MaterialIcon></button>
+                <button type="button" data-testid={`remove-person-${person._id}`} aria-label={`Remove ${person.name}`} onClick={() => remove(person)}><MaterialIcon size={16}>close</MaterialIcon></button>
             </div>)}
         </div>}
     </div>;

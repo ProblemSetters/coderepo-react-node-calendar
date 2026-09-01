@@ -31,9 +31,8 @@ export function CalendarSidebar({ calendars, collapsed, cursor, insights, insigh
         document.addEventListener("keydown", closeOnEscape);
         return () => { document.removeEventListener("pointerdown", closeMenu); document.removeEventListener("keydown", closeOnEscape); };
     }, [createMenuOpen]);
-    if (collapsed) return null;
     return (
-        <aside className="sidebar">
+        <aside className="sidebar" aria-hidden={collapsed} inert={collapsed}><div className="sidebar-inner">
             <div className="create-menu-anchor" ref={createMenuReference}>
                 <button className="create-button" data-testid="create-event-button" aria-expanded={createMenuOpen} aria-haspopup="menu" onClick={() => setCreateMenuOpen((open) => !open)}><MaterialIcon size={28}>add</MaterialIcon><span>Create</span><MaterialIcon className="create-chevron" size={18}>arrow_drop_down</MaterialIcon></button>
                 {createMenuOpen && <div className="google-menu create-menu" role="menu" aria-label="Create calendar item">{createOptions.map((option) => <button key={option.type} role="menuitem" onClick={() => { setCreateMenuOpen(false); onCreate(option.type); }}>{option.label}</button>)}</div>}
@@ -58,6 +57,6 @@ export function CalendarSidebar({ calendars, collapsed, cursor, insights, insigh
             {creating && <CalendarEditor onClose={() => setCreating(false)} onSave={onCalendarCreate} usedColors={calendars.map((calendar) => calendar.color)} />}
             {editingCalendar && <CalendarEditor calendar={editingCalendar} onClose={() => setEditingCalendar(null)} onDelete={async (calendar) => { if (await onCalendarDelete(calendar)) setEditingCalendar(null); }} onSave={(values) => onCalendarUpdate(editingCalendar._id, values).then(() => setEditingCalendar(null))} />}
             {operationError && <p className="sidebar-error" role="alert">{operationError}</p>}
-        </aside>
+        </div></aside>
     );
 }

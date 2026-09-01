@@ -1,26 +1,26 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
-import { CalendarHeader } from "../features/calendar/CalendarHeader.jsx";
-import { CalendarSidebar } from "../features/calendar/CalendarSidebar.jsx";
-import { CalendarEditor } from "../features/calendar/CalendarEditor.jsx";
-import { MiniCalendar } from "../features/calendar/MiniCalendar.jsx";
-import { MonthView } from "../features/calendar/MonthView.jsx";
-import { TimeGrid, timeGridLayers } from "../features/calendar/TimeGrid.jsx";
-import { getEventColumnGeometry, layoutTimedEvents } from "../features/calendar/event-layout.js";
-import { calendarColors, foregroundForColor, nextAvailableCalendarColor, overlapColor } from "../features/calendar/calendar-colors.js";
-import { EventEditor } from "../features/events/EventEditor.jsx";
-import { EventPreview } from "../features/events/EventPreview.jsx";
-import { AdvancedSearchPanel } from "../features/events/AdvancedSearchPanel.jsx";
-import { SearchResults } from "../features/events/SearchResults.jsx";
-import { TimeInsightsDrawer } from "../features/insights/TimeInsightsDrawer.jsx";
-import { TimeInsightsSummary } from "../features/insights/TimeInsightsSummary.jsx";
-import { dateKey, formatHeading, formatTime, formatTimeZoneOffset, getViewRange, moveCursor, startOfWeek } from "../shared/utils/date.js";
+import { CalendarHeader } from "../src/features/calendar/CalendarHeader.jsx";
+import { CalendarSidebar } from "../src/features/calendar/CalendarSidebar.jsx";
+import { CalendarEditor } from "../src/features/calendar/CalendarEditor.jsx";
+import { MiniCalendar } from "../src/features/calendar/MiniCalendar.jsx";
+import { MonthView } from "../src/features/calendar/MonthView.jsx";
+import { TimeGrid, hourHeight, timeGridLayers } from "../src/features/calendar/TimeGrid.jsx";
+import { getEventColumnGeometry, layoutTimedEvents } from "../src/features/calendar/event-layout.js";
+import { calendarColors, foregroundForColor, nextAvailableCalendarColor, overlapColor } from "../src/features/calendar/calendar-colors.js";
+import { EventEditor } from "../src/features/events/EventEditor.jsx";
+import { EventPreview } from "../src/features/events/EventPreview.jsx";
+import { AdvancedSearchPanel } from "../src/features/events/AdvancedSearchPanel.jsx";
+import { SearchResults } from "../src/features/events/SearchResults.jsx";
+import { TimeInsightsDrawer } from "../src/features/insights/TimeInsightsDrawer.jsx";
+import { TimeInsightsSummary } from "../src/features/insights/TimeInsightsSummary.jsx";
+import { dateKey, formatHeading, formatTime, formatTimeZoneOffset, getViewRange, moveCursor, startOfWeek } from "../src/shared/utils/date.js";
 
 const peopleMocks = vi.hoisted(() => ({ search: vi.fn() }));
 const availabilityMocks = vi.hoisted(() => ({ conflicts: vi.fn() }));
-vi.mock("../features/people/people.api.js", () => ({ peopleApi: { search: peopleMocks.search } }));
-vi.mock("../features/people/availability.api.js", () => ({ availabilityApi: { conflicts: availabilityMocks.conflicts } }));
+vi.mock("../src/features/people/people.api.js", () => ({ peopleApi: { search: peopleMocks.search } }));
+vi.mock("../src/features/people/availability.api.js", () => ({ availabilityApi: { conflicts: availabilityMocks.conflicts } }));
 
 describe("calendar navigation", () => {
     test("keeps mobile month events accessible when their visible labels are hidden", () => {
@@ -84,13 +84,13 @@ describe("event behavior", () => {
         await userEvent.click(screen.getByRole("combobox", { name: "Search in" }));
         await userEvent.click(screen.getByRole("option", { name: "All calendars" }));
         await userEvent.type(screen.getByPlaceholderText("Keywords contained in event"), "planning");
-        await userEvent.type(screen.getByPlaceholderText("Enter a participant, organizer, or creator"), "Sky");
+        await userEvent.type(screen.getByPlaceholderText("Enter a participant, organizer, or creator"), "Jordan Smith");
         await userEvent.type(screen.getByPlaceholderText("Enter a location or room"), "Cedar");
-        await userEvent.type(screen.getByPlaceholderText("Keywords not contained in event"), "cancelled");
+        await userEvent.type(screen.getByPlaceholderText("Keywords not contained in event"), "canceled");
         fireEvent.change(screen.getByLabelText("From date"), { target: { value: "2026-08-01" } });
         fireEvent.change(screen.getByLabelText("To date"), { target: { value: "2026-08-31" } });
         await userEvent.click(screen.getByRole("button", { name: "Search" }));
-        expect(onSearch).toHaveBeenCalledWith(expect.objectContaining({ scope: "all", what: "planning", who: "Sky", where: "Cedar", exclude: "cancelled", from: "2026-08-01", to: "2026-08-31" }));
+        expect(onSearch).toHaveBeenCalledWith(expect.objectContaining({ scope: "all", what: "planning", who: "Jordan Smith", where: "Cedar", exclude: "canceled", from: "2026-08-01", to: "2026-08-31" }));
     });
 
     test("reveals advanced filters only from the search dropdown", async () => {
@@ -159,7 +159,7 @@ describe("event behavior", () => {
         const second = screen.getByRole("button", { name: /Second meeting/ });
         const overlapping = screen.getByRole("button", { name: /Overlapping meeting/ });
         const task = screen.getByRole("button", { name: /Visible task/ });
-        expect(first).toHaveStyle({ top: "578px", height: "60px" });
+        expect(first).toHaveStyle({ top: `${9 * hourHeight + 2}px`, height: `${hourHeight - 4}px` });
         expect(second).toHaveAttribute("data-overlap", "true");
         expect(second).toHaveAttribute("data-overlap-edge", "start");
         expect(overlapping).toHaveAttribute("data-overlap-column", "1");
@@ -293,63 +293,63 @@ describe("event behavior", () => {
 
     test("normalizes all-day dates and preserves saved guests", async () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
-        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "outOfOffice", cursor: new Date("2026-08-27T10:00:00"), participants: ["Sky", "Sage"] }} onClose={vi.fn()} onSave={onSave} />);
+        render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "outOfOffice", cursor: new Date("2026-08-27T10:00:00"), participants: ["Jordan Smith", "Taylor Johnson"] }} onClose={vi.fn()} onSave={onSave} />);
         expect(screen.getByRole("button", { name: /Start date: Thursday, August 27/ })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /End date:/ })).not.toBeInTheDocument();
-        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Sky");
-        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Sage");
+        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Jordan Smith");
+        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Taylor Johnson");
         await userEvent.click(screen.getByTestId("save-event-button"));
         const payload = onSave.mock.calls[0][0];
-        expect(payload).toEqual(expect.objectContaining({ allDay: true, participants: ["Sky", "Sage"] }));
+        expect(payload).toEqual(expect.objectContaining({ allDay: true, participants: ["Jordan Smith", "Taylor Johnson"] }));
         expect(dateKey(payload.startAt)).toBe("2026-08-27");
         expect(dateKey(payload.endAt)).toBe("2026-08-28");
     });
 
     test("searches, selects, removes, and persists event guests", async () => {
-        const sky = { _id: "person-1", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8" };
-        const sage = { _id: "person-2", name: "Sage", email: "sage@hackerrank.com", avatarColor: "#0f9d58" };
+        const sky = { _id: "person-1", name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8" };
+        const sage = { _id: "person-2", name: "Taylor Johnson", email: "taylor.johnson@calendar.com", avatarColor: "#0f9d58" };
         const onSave = vi.fn().mockResolvedValue(undefined);
         peopleMocks.search.mockResolvedValue([sky, sage]);
         render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "outOfOffice", cursor: new Date("2026-08-27T10:00:00") }} onClose={vi.fn()} onSave={onSave} />);
         const search = screen.getByRole("textbox", { name: "Search guests" });
         await userEvent.click(search);
-        await userEvent.click(await screen.findByRole("option", { name: /Sky/ }));
-        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Sky");
+        await userEvent.click(await screen.findByRole("option", { name: /Jordan Smith/ }));
+        expect(screen.getByLabelText("Selected guests")).toHaveTextContent("Jordan Smith");
         await userEvent.click(search);
-        expect(screen.queryByRole("option", { name: /Sky/ })).not.toBeInTheDocument();
-        await userEvent.click(await screen.findByRole("option", { name: /Sage/ }));
-        await userEvent.click(screen.getByRole("button", { name: "Remove Sky" }));
-        expect(screen.getByLabelText("Selected guests")).not.toHaveTextContent("Sky");
+        expect(screen.queryByRole("option", { name: /Jordan Smith/ })).not.toBeInTheDocument();
+        await userEvent.click(await screen.findByRole("option", { name: /Taylor Johnson/ }));
+        await userEvent.click(screen.getByRole("button", { name: "Remove Jordan Smith" }));
+        expect(screen.getByLabelText("Selected guests")).not.toHaveTextContent("Jordan Smith");
         await userEvent.click(screen.getByTestId("save-event-button"));
-        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Sage"] }));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Taylor Johnson"] }));
     });
 
     test("warns about guest conflicts live and rechecks availability before save", async () => {
-        const person = { _id: "64f000000000000000000001", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8" };
+        const person = { _id: "64f000000000000000000001", name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8" };
         const conflict = { person, busy: [{ title: "Design review", startAt: "2026-08-27T10:15:00.000Z", endAt: "2026-08-27T11:00:00.000Z" }] };
         const onSave = vi.fn().mockResolvedValue(undefined);
         peopleMocks.search.mockResolvedValue([person]);
         availabilityMocks.conflicts.mockResolvedValue({ available: false, conflicts: [conflict] });
         render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T10:00:00"), title: "Planning" }} onClose={vi.fn()} onSave={onSave} />);
         await userEvent.click(screen.getByRole("textbox", { name: "Search guests" }));
-        await userEvent.click(await screen.findByRole("option", { name: /Sky/ }));
-        expect(await screen.findByText("Sky is unavailable")).toBeInTheDocument();
-        expect(screen.getByText(/Sky: .*–/)).toBeInTheDocument();
+        await userEvent.click(await screen.findByRole("option", { name: /Jordan Smith/ }));
+        expect(await screen.findByText("Jordan Smith is unavailable")).toBeInTheDocument();
+        expect(screen.getByText(/Jordan Smith: .*–/)).toBeInTheDocument();
         await userEvent.click(screen.getByTestId("save-event-button"));
         expect(availabilityMocks.conflicts).toHaveBeenCalledTimes(2);
-        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Sky"], participantIds: [person._id] }));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["Jordan Smith"], participantIds: [person._id] }));
     });
 
     test("warns without blocking when a free guest is outside working hours", async () => {
-        const person = { _id: "64f000000000000000000001", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", timeZone: "America/New_York", workingHours: { startMinute: 540, endMinute: 1020 } };
+        const person = { _id: "64f000000000000000000001", name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8", timeZone: "America/New_York", workingHours: { startMinute: 540, endMinute: 1020 } };
         const onSave = vi.fn().mockResolvedValue(undefined);
         peopleMocks.search.mockResolvedValue([person]);
         availabilityMocks.conflicts.mockResolvedValue({ available: true, conflicts: [], withinWorkingHours: false, workingHoursWarnings: [{ person, localDate: "2026-08-27", workingDay: true }] });
         render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ cursor: new Date("2026-08-27T22:00:00"), title: "Late planning" }} onClose={vi.fn()} onSave={onSave} />);
         await userEvent.click(screen.getByRole("textbox", { name: "Search guests" }));
-        await userEvent.click(await screen.findByRole("option", { name: /Sky/ }));
+        await userEvent.click(await screen.findByRole("option", { name: /Jordan Smith/ }));
         expect(await screen.findByText("Outside working hours")).toBeInTheDocument();
-        expect(screen.getByText(/Sky: .*America\/New York/)).toBeInTheDocument();
+        expect(screen.getByText(/Jordan Smith: .*America\/New York/)).toBeInTheDocument();
         availabilityMocks.conflicts.mockClear();
         await userEvent.click(screen.getByTestId("save-event-button"));
         expect(availabilityMocks.conflicts).toHaveBeenCalledTimes(1);
@@ -400,10 +400,10 @@ describe("event behavior", () => {
 
     test("keeps event deletion confirmation inside the app", async () => {
         const onDelete = vi.fn();
-        const event = { _id: "event-1", title: "Planning", type: "task", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false, organizer: "River", location: "Cedar", description: "Plan launch" };
+        const event = { _id: "event-1", title: "Planning", type: "task", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false, organizer: "Alex Morgan", location: "Cedar", description: "Plan launch" };
         render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onDelete={onDelete} onEdit={vi.fn()} />);
         expect(screen.getByText("Task")).toBeInTheDocument();
-        expect(screen.getByText("River")).toBeInTheDocument();
+        expect(screen.getByText("Alex Morgan")).toBeInTheDocument();
         await userEvent.click(screen.getByRole("button", { name: "Delete event" }));
         expect(screen.getByRole("heading", { name: "Delete event?" })).toBeInTheDocument();
         expect(onDelete).not.toHaveBeenCalled();
@@ -416,12 +416,12 @@ describe("event behavior", () => {
         const onRespond = vi.fn();
         const event = {
             _id: "event-1", title: "Planning", type: "event", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false,
-            organizer: "River", editable: false, responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 1, declined: 1, tentative: 1 },
+            organizer: "Alex Morgan", editable: false, responseStatus: "needsAction", responseSummary: { needsAction: 1, accepted: 1, declined: 1, tentative: 1 },
             participantPeople: [
-                { _id: "person-2", name: "Sky", email: "sky@hackerrank.com", avatarColor: "#1a73e8", responseStatus: "accepted" },
-                { _id: "person-3", name: "Sage", email: "sage@hackerrank.com", avatarColor: "#d93025", responseStatus: "needsAction" },
-                { _id: "person-4", name: "Ember", email: "ember@hackerrank.com", avatarColor: "#00796b", responseStatus: "declined" },
-                { _id: "person-5", name: "Nova", email: "nova@hackerrank.com", avatarColor: "#7b1fa2", responseStatus: "tentative" },
+                { _id: "person-2", name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8", responseStatus: "accepted" },
+                { _id: "person-3", name: "Taylor Johnson", email: "taylor.johnson@calendar.com", avatarColor: "#d93025", responseStatus: "needsAction" },
+                { _id: "person-4", name: "Riley Parker", email: "riley.parker@calendar.com", avatarColor: "#00796b", responseStatus: "declined" },
+                { _id: "person-5", name: "Casey Bennett", email: "casey.bennett@calendar.com", avatarColor: "#7b1fa2", responseStatus: "tentative" },
             ],
         };
         const { rerender } = render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onRespond={onRespond} />);
@@ -429,10 +429,10 @@ describe("event behavior", () => {
         for (const summary of ["1 yes", "1 no", "1 awaiting", "1 maybe"]) expect(screen.getByText(summary)).toBeInTheDocument();
         const guestDisclosure = screen.getByRole("button", { name: "Show guest details" });
         expect(guestDisclosure).toHaveAttribute("aria-expanded", "false");
-        expect(screen.queryByText("sky@hackerrank.com")).not.toBeInTheDocument();
+        expect(screen.queryByText("jordan.smith@calendar.com")).not.toBeInTheDocument();
         await userEvent.click(guestDisclosure);
         expect(screen.getByRole("button", { name: "Hide guest details" })).toHaveAttribute("aria-expanded", "true");
-        expect(screen.getByText("sky@hackerrank.com")).toBeInTheDocument();
+        expect(screen.getByText("jordan.smith@calendar.com")).toBeInTheDocument();
         await userEvent.click(screen.getByRole("button", { name: "Hide guest details" }));
         for (const name of ["Yes, attending", "Maybe attending", "No, declining"]) expect(screen.getByRole("button", { name })).toHaveAttribute("aria-pressed", "false");
         await userEvent.click(screen.getByRole("button", { name: "Maybe attending" }));
@@ -448,7 +448,7 @@ describe("event behavior", () => {
         const event = {
             _id: "series-1", occurrenceKey: "series-1:2026-08-27", occurrenceStartAt: "2026-08-27T10:00:00.000Z", recurring: true,
             title: "Daily planning", type: "event", startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z", allDay: false,
-            organizer: "River", editable: false, responseStatus: "needsAction", recurrence: { frequency: "daily", interval: 1, endType: "never", timeZone: "UTC" },
+            organizer: "Alex Morgan", editable: false, responseStatus: "needsAction", recurrence: { frequency: "daily", interval: 1, endType: "never", timeZone: "UTC" },
         };
         render(<EventPreview calendar={{ name: "Work", color: "#1a73e8" }} event={event} onClose={vi.fn()} onRespond={onRespond} />);
         expect(screen.getAllByRole("button", { name: /attending|declining/ }).map((button) => button.getAttribute("aria-label"))).toEqual(["Yes, attending", "No, declining", "Maybe attending"]);
@@ -529,7 +529,8 @@ describe("event behavior", () => {
         const base = { _id: "invitation", calendarId: "calendar-1", title: "Planning", startAt: "2026-08-27T10:00:00", endAt: "2026-08-27T11:00:00", allDay: false };
         const { rerender } = render(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[{ ...base, responseStatus: "needsAction" }]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
         const outlinedEvent = screen.getByRole("button", { name: /Planning/ });
-        expect(outlinedEvent).toHaveStyle({ backgroundColor: "#fff", borderColor: "#1a73e8" });
+        expect(outlinedEvent.style.backgroundColor).toBe("var(--surface)");
+        expect(outlinedEvent).toHaveStyle({ borderColor: "#1a73e8" });
         expect(getComputedStyle(outlinedEvent).borderWidth).toBe("1px");
         rerender(<TimeGrid calendars={calendars} cursor={new Date(2026, 7, 27)} days={1} events={[{ ...base, responseStatus: "accepted" }]} onCreate={vi.fn()} onEventSelect={vi.fn()} />);
         expect(screen.getByRole("button", { name: /Planning/ })).toHaveStyle({ backgroundColor: "#1a73e8" });

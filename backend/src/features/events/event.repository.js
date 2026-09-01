@@ -41,11 +41,6 @@ export const eventRepository = {
     countByCalendarId: (calendarId) => Event.countDocuments({ calendarId }),
     create: (input) => Event.create(input),
     update: (id, input) => Event.findByIdAndUpdate(id, input, { new: true, runValidators: true }).lean(),
-    respondExisting: (id, personId, status, respondedAt) => Event.findOneAndUpdate(
-        { _id: id, participantIds: personId, "attendeeResponses.personId": personId },
-        { $set: { "attendeeResponses.$.status": status, "attendeeResponses.$.respondedAt": respondedAt } },
-        { new: true, runValidators: true },
-    ).lean(),
     addResponse: (id, personId, status, respondedAt) => Event.findOneAndUpdate(
         { _id: id, participantIds: personId, "attendeeResponses.personId": { $ne: personId } },
         { $push: { attendeeResponses: { personId, status, respondedAt } } },

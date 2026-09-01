@@ -38,7 +38,7 @@ export function MonthView({ calendars, cursor, events, onCreate, onDaySelect, on
             const background = colorFor(event);
             const time = event.allDay ? "" : isSameDay(event.startAt, overflowDay.date) ? formatTime(event.startAt) : "Continues";
             const filled = !event.responseStatus || event.responseStatus === "accepted";
-            return <button type="button" className={`month-day-popover-event ${event.allDay ? "all-day" : ""}`} data-item-type={event.type || "event"} data-response-status={event.responseStatus} key={event.occurrenceKey || event._id} style={event.allDay ? { backgroundColor: filled ? background : "#fff", color: filled ? foregroundForColor(background) : background, borderColor: background } : undefined} onClick={() => { setOverflowDay(null); onEventSelect(event); }}>
+            return <button type="button" className={`month-day-popover-event ${event.allDay ? "all-day" : ""}`} data-item-type={event.type || "event"} data-response-status={event.responseStatus} key={event.occurrenceKey || event._id} style={event.allDay ? { backgroundColor: filled ? background : "var(--surface)", color: filled ? foregroundForColor(background) : background, borderColor: background } : undefined} onClick={() => { setOverflowDay(null); onEventSelect(event); }}>
                 {event.type === "workingLocation" ? <MaterialIcon size={15}>business</MaterialIcon> : event.type === "outOfOffice" ? <MaterialIcon className="out-of-office-icon" size={16}>event_busy</MaterialIcon> : !event.allDay && <i style={{ borderColor: background, backgroundColor: event.color ? background : "transparent" }} />}
                 <span>{time && <time>{time}</time>}<strong>{event.title}</strong></span>
             </button>;
@@ -46,21 +46,21 @@ export function MonthView({ calendars, cursor, events, onCreate, onDaySelect, on
     </section>, document.body);
     return (
         <div className="month-view">
-            <div className="month-weekdays">{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => <span key={day}>{day.slice(0, 3)}</span>)}</div>
+            <div className="month-weekdays">{["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => <span key={day}>{day.slice(0, 3)}</span>)}</div>
             <div className="month-grid">
                 {dates.map((date) => {
                     const dayEvents = events.filter((event) => overlapsDate(event, date));
                     const shown = dayEvents.slice(0, 3);
-                    return <div className={`month-cell ${date.getMonth() !== cursor.getMonth() ? "outside" : ""} ${isSameDay(date, new Date()) ? "today" : ""}`} key={dateKey(date)} onDoubleClick={(clickEvent) => { if (clickEvent.target.closest("button")) return; const startAt = new Date(date); startAt.setHours(9, 0, 0, 0); onCreate(startAt); }}>
+                    return <div className={`month-cell ${date.getMonth() !== cursor.getMonth() ? "outside" : ""} ${isSameDay(date, new Date()) ? "today" : ""}`} data-testid={`calendar-day-${dateKey(date)}`} key={dateKey(date)} onDoubleClick={(clickEvent) => { if (clickEvent.target.closest("button")) return; const startAt = new Date(date); startAt.setHours(9, 0, 0, 0); onCreate(startAt); }}>
                         <button className="month-date" aria-label={`Open ${date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}`} onClick={() => onDaySelect(date)}>{date.getDate()}</button>
                         <div className="month-events">
                             {shown.map((event) => {
                                 const time = event.allDay ? "All day" : isSameDay(event.startAt, date) ? formatTime(event.startAt) : "Continues";
                                 const background = colorFor(event);
                                 const filled = !event.responseStatus || event.responseStatus === "accepted";
-                                return <button aria-label={`${event.title}, ${time}`} key={event.occurrenceKey || event._id} data-item-type={event.type || "event"} data-response-status={event.responseStatus} className={`month-event ${event.allDay ? "all-day" : ""}`} onClick={() => onEventSelect(event)}>{event.allDay ? <span className="event-fill" style={{ backgroundColor: filled ? background : "#fff", color: filled ? foregroundForColor(background) : background, borderColor: background }}>{event.type === "outOfOffice" && <MaterialIcon className="out-of-office-icon" size={14}>event_busy</MaterialIcon>}<span>{event.title}</span></span> : <>{event.type === "outOfOffice" ? <MaterialIcon className="out-of-office-icon" size={15}>event_busy</MaterialIcon> : <i style={{ backgroundColor: background }} />}<span>{time}</span><strong>{event.title}</strong></>}</button>;
+                                return <button aria-label={`${event.title}, ${time}`} key={event.occurrenceKey || event._id} data-item-type={event.type || "event"} data-response-status={event.responseStatus} className={`month-event ${event.allDay ? "all-day" : ""}`} data-testid={`event-chip-${event._id}`} onClick={() => onEventSelect(event)}>{event.allDay ? <span className="event-fill" style={{ backgroundColor: filled ? background : "var(--surface)", color: filled ? foregroundForColor(background) : background, borderColor: background }}>{event.type === "outOfOffice" && <MaterialIcon className="out-of-office-icon" size={14}>event_busy</MaterialIcon>}<span>{event.title}</span></span> : <>{event.type === "outOfOffice" ? <MaterialIcon className="out-of-office-icon" size={15}>event_busy</MaterialIcon> : <i style={{ backgroundColor: background }} />}<span>{time}</span><strong>{event.title}</strong></>}</button>;
                             })}
-                            {dayEvents.length > shown.length && <button className="more-events" aria-haspopup="dialog" onClick={(event) => openOverflow(event, date, dayEvents)}>+{dayEvents.length - shown.length} more</button>}
+                            {dayEvents.length > shown.length && <button className="more-events" data-testid={`month-more-${dateKey(date)}`} aria-haspopup="dialog" onClick={(event) => openOverflow(event, date, dayEvents)}>+{dayEvents.length - shown.length} more</button>}
                         </div>
                     </div>;
                 })}

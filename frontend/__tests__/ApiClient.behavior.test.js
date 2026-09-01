@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { calendarApi } from "../features/calendar/calendar.api.js";
-import { eventApi } from "../features/events/event.api.js";
-import { insightApi } from "../features/insights/insight.api.js";
-import { availabilityApi } from "../features/people/availability.api.js";
-import { peopleApi } from "../features/people/people.api.js";
-import { profileApi } from "../features/profiles/profile.api.js";
-import { hasSessionToken, request, setProfileToken, setSessionToken } from "../shared/api/client.js";
+import { calendarApi } from "../src/features/calendar/calendar.api.js";
+import { eventApi } from "../src/features/events/event.api.js";
+import { insightApi } from "../src/features/insights/insight.api.js";
+import { availabilityApi } from "../src/features/people/availability.api.js";
+import { peopleApi } from "../src/features/people/people.api.js";
+import { profileApi } from "../src/features/profiles/profile.api.js";
+import { hasSessionToken, request, setProfileToken, setSessionToken } from "../src/shared/api/client.js";
 
 beforeEach(() => { globalThis.fetch = vi.fn(); setProfileToken(""); setSessionToken(""); });
 afterEach(() => { vi.restoreAllMocks(); });
@@ -68,8 +68,8 @@ describe("API client", () => {
 
     test("encodes people searches and posts availability criteria", async () => {
         fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: [] }) });
-        await peopleApi.search("Sky & Sage");
-        expect(fetch.mock.calls[0][0]).toContain("/people?q=Sky%20%26%20Sage&limit=20");
+        await peopleApi.search("Jordan Smith & Taylor Johnson");
+        expect(fetch.mock.calls[0][0]).toContain("/people?q=Jordan%20Smith%20%26%20Taylor%20Johnson&limit=20");
         const payload = { participantIds: ["person-1"], from: "2026-08-27", timeZone: "Asia/Kolkata", days: 5, durationMinutes: 30 };
         await availabilityApi.suggestions(payload);
         expect(fetch.mock.calls[1][1]).toEqual(expect.objectContaining({ method: "POST", body: JSON.stringify(payload) }));

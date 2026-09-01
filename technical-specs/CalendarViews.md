@@ -19,7 +19,17 @@ The frontend exposes Day, Week, and Month views over one event contract. All dat
 | --- | --- |
 | `today-button` | Return the cursor to today. |
 | `view-select` | Open the Day, Week, or Month view menu. |
-| `calendar-day-{YYYY-MM-DD}` | Stable date cell identifier where applicable. |
+| `period-previous` | Move the cursor back one period. |
+| `period-next` | Move the cursor forward one period. |
+| `calendar-day-{YYYY-MM-DD}` | A day heading in Day and Week, or a cell in Month. |
+| `event-chip-{eventId}` | A timed event in Day, Week, or Month. |
+| `all-day-chip-{eventId}` | An all-day event in the Day or Week all-day row. |
+| `month-more-{YYYY-MM-DD}` | Open the overflow list for a Month cell. |
+| `mini-calendar-previous` | Move the mini calendar back one month. |
+| `mini-calendar-next` | Move the mini calendar forward one month. |
+| `mini-calendar-day-{YYYY-MM-DD}` | Select a date from the mini calendar. |
+| `email-input` | Enter the workspace email on the sign-in screen. |
+| `password-input` | Enter the workspace password on the sign-in screen. |
 
 ## Edge cases
 

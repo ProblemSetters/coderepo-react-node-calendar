@@ -19,8 +19,8 @@ Visibility is persisted on the calendar and is applied consistently to range que
 | `calendar-toggle-{calendarId}` | Show or hide a calendar. |
 | `calendar-name-input` | Enter the new calendar name. |
 | `create-calendar-submit` | Submit calendar creation. |
-
-The per-calendar overflow menu exposes Display this only, Settings and sharing, 24 accessible named color presets, and a custom color input. It closes on successful actions, outside pointer interaction, or `Escape`; failed operations remain open with an inline error.
+| `search-open` | Open search from the header. |
+| `search-quick` | Enter the quick search term. |
 
 ## Data safety
 
