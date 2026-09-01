@@ -18,6 +18,7 @@ export function EventPreview({ calendar, error = "", event, onClose, onDelete, o
     const date = new Date(event.startAt);
     const typeLabels = { event: "Event", task: "Task", outOfOffice: "Out of office", focusTime: "Focus time", workingLocation: "Working location", appointmentSchedule: "Appointment schedule" };
     const guests = event.participantPeople || [];
+    const host = event.organizerPerson && !guests.some((guest) => String(guest._id) === String(event.organizerPerson._id)) ? event.organizerPerson : null;
     const responseCounts = event.responseSummary || guests.reduce((counts, guest) => ({ ...counts, [guest.responseStatus || "needsAction"]: (counts[guest.responseStatus || "needsAction"] || 0) + 1 }), {});
     const responseRows = [["accepted", "yes"], ["declined", "no"], ["needsAction", "awaiting"], ["tentative", "maybe"]].map(([status, label]) => ({ count: responseCounts[status] || 0, label })).filter(({ count }) => count > 0);
     const guestCount = Math.max(guests.length, event.participants?.length || 0, responseRows.reduce((total, row) => total + row.count, 0));
@@ -41,7 +42,10 @@ export function EventPreview({ calendar, error = "", event, onClose, onDelete, o
         </section>}
         {(guestCount > 0 || event.organizer) && <div className="preview-detail preview-attendees"><MaterialIcon>group</MaterialIcon><div>
             {guests.length > 0 ? <button aria-controls={guestListId} aria-expanded={guestsExpanded} aria-label={`${guestsExpanded ? "Hide" : "Show"} guest details`} className="preview-attendees-summary" type="button" onClick={() => setGuestsExpanded((expanded) => !expanded)}><span><strong>{guestCount} guest{guestCount === 1 ? "" : "s"}</strong><span className="preview-attendee-counts">{responseRows.map(({ count, label }) => <small key={label}>{count} {label}</small>)}</span></span><MaterialIcon className="preview-attendees-chevron" size={20}>{guestsExpanded ? "expand_less" : "expand_more"}</MaterialIcon></button> : <span>{guestCount > 0 ? `${guestCount} guest${guestCount === 1 ? "" : "s"}` : event.organizer}{responseRows.length > 0 && <span className="preview-attendee-counts">{responseRows.map(({ count, label }) => <small key={label}>{count} {label}</small>)}</span>}</span>}
-            {guests.length > 0 && guestsExpanded && <ul id={guestListId}>{guests.map((guest) => <li key={guest._id || guest.name}>
+            {guests.length > 0 && guestsExpanded && <ul id={guestListId}>{host && <li className="preview-attendee-host" key="host">
+                <span className="preview-attendee-avatar-wrap"><i className="preview-attendee-avatar" style={{ backgroundColor: host.avatarColor || "#5f6368" }}>{identityInitials(host.name)}</i></span>
+                <span><strong>{host.name}</strong>{host.email && <small>{host.email}</small>}<small className="preview-attendee-role">Organizer</small></span>
+            </li>}{guests.map((guest) => <li key={guest._id || guest.name}>
                 <span className="preview-attendee-avatar-wrap"><i className="preview-attendee-avatar" style={{ backgroundColor: guest.avatarColor || "#5f6368" }}>{identityInitials(guest.name)}</i><i className={`preview-attendee-badge ${guest.responseStatus || "needsAction"}`}><MaterialIcon size={13}>{guest.responseStatus === "accepted" ? "check" : guest.responseStatus === "declined" ? "close" : guest.responseStatus === "tentative" ? "help_outline" : "schedule"}</MaterialIcon></i></span>
                 <span><strong>{guest.name}</strong>{guest.email && <small>{guest.email}</small>}</span>
                 <span className="sr-only">{rsvpStatusLabels[guest.responseStatus || "needsAction"]}</span>

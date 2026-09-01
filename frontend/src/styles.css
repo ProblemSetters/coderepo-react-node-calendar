@@ -290,6 +290,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-menu { width: 32px; height: 32px; opacity: 0; }
 .calendar-row:hover .calendar-menu, .calendar-menu:focus-visible, .calendar-row.menu-open .calendar-menu { opacity: 1; }
 .sidebar-error { margin: 10px 16px; color: var(--danger); font-size: 12px; }
+.sidebar-footer { display: flex; gap: 4px; padding: 16px 8px 8px 16px; color: var(--muted); font-size: 12px; }
+.sidebar-footer a { color: inherit; text-decoration: none; }
+.sidebar-footer a:hover { text-decoration: underline; }
 .sidebar-scrim { display: none; }
 
 .calendar-options-menu { position: fixed; z-index: 110; width: 250px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 3px 7px 2px rgb(60 64 67 / 15%), 0 1px 2px rgb(60 64 67 / 30%); animation: menu-in 100ms ease-out; }
@@ -714,6 +717,7 @@ dialog::backdrop { background: rgb(32 33 36 / 18%); }
 .preview-attendee-badge.accepted { background: var(--success-container); color: var(--success); }
 .preview-attendee-badge.declined { background: var(--danger-container); color: var(--danger); }
 .preview-attendee-badge.tentative { background: var(--warning-container); color: var(--warning); }
+.preview-attendee-role { color: var(--muted); font-size: 11px; }
 .preview-attendees li > span:nth-child(2) { min-width: 0; }
 .preview-attendees li > span:nth-child(2) strong, .preview-attendees li > span:nth-child(2) small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preview-attendees li > span:nth-child(2) strong { color: var(--ink-strong); font-size: 13px; font-weight: 500; }

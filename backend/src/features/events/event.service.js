@@ -60,11 +60,14 @@ const normalizedName = (name) => String(name).trim().toLocaleLowerCase();
 
 async function decorateEvents(events, profileId) {
     const values = events.map(plainEvent);
-    const ids = [...new Set(values.flatMap((event) => event.participantIds || []).map(String))];
+    const calendarIds = [...new Set(values.map((event) => String(event.calendarId)))];
+    const ownerByCalendarId = new Map((await calendarRepository.findOwners(calendarIds)).map((calendar) => [String(calendar._id), String(calendar.ownerId || "")]));
+    const ids = [...new Set([...values.flatMap((event) => event.participantIds || []).map(String), ...ownerByCalendarId.values()].filter(Boolean))];
     const people = ids.length ? await personService.findExisting(ids) : [];
     const peopleById = new Map(people.map((person) => [String(person._id), person]));
     const ownedIds = profileId ? new Set((await calendarRepository.findOwnedIds(values.map((event) => event.calendarId), profileId)).map((calendar) => String(calendar._id))) : null;
     return values.map((event) => {
+        const host = peopleById.get(ownerByCalendarId.get(String(event.calendarId)) || "");
         const directoryGuests = (event.participantIds || []).map((id) => peopleById.get(String(id))).filter(Boolean);
         const directoryNames = new Set(directoryGuests.map((person) => normalizedName(person.name)));
         const responsesById = new Map((event.attendeeResponses || []).map((response) => [String(response.personId), response]));
@@ -84,6 +87,7 @@ async function decorateEvents(events, profileId) {
             responseStatus: currentResponse?.status,
             respondedAt: currentResponse?.respondedAt || null,
             responseSummary,
+            organizerPerson: host ? { _id: host._id, name: host.name, email: host.email, avatarColor: host.avatarColor } : null,
             participantPeople: [
                 ...directoryGuests.map((person) => ({ _id: person._id, name: person.name, email: person.email, avatarColor: person.avatarColor, responseStatus: responseForOccurrence(event, person._id)?.status || "needsAction" })),
                 ...legacyGuests,

@@ -57,6 +57,7 @@ export function CalendarSidebar({ calendars, collapsed, cursor, insights, insigh
             {creating && <CalendarEditor onClose={() => setCreating(false)} onSave={onCalendarCreate} usedColors={calendars.map((calendar) => calendar.color)} />}
             {editingCalendar && <CalendarEditor calendar={editingCalendar} onClose={() => setEditingCalendar(null)} onDelete={async (calendar) => { if (await onCalendarDelete(calendar)) setEditingCalendar(null); }} onSave={(values) => onCalendarUpdate(editingCalendar._id, values).then(() => setEditingCalendar(null))} />}
             {operationError && <p className="sidebar-error" role="alert">{operationError}</p>}
+            <footer className="sidebar-footer"><a href="#terms">Terms</a><span aria-hidden="true">–</span><a href="#privacy">Privacy</a></footer>
         </div></aside>
     );
 }
