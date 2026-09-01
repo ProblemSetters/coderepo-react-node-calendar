@@ -157,6 +157,16 @@ describe("application orchestration", () => {
         expect(localStorage.getItem("calendar-profile-id")).toBeNull();
     });
 
+    test("leaves the signed-in profile out of the chooser while switching", async () => {
+        render(<App />);
+        await screen.findByRole("button", { name: /Design review/ });
+        await userEvent.click(screen.getByRole("button", { name: "Alex Morgan profile" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Switch profile" }));
+        expect(await screen.findByText("Signed in as Alex Morgan")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Continue as Alex Morgan" })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: `Continue as ${participant.name}` })).toBeInTheDocument();
+    });
+
     test("signs out directly from the active profile menu", async () => {
         render(<App />);
         await screen.findByRole("button", { name: /Design review/ });

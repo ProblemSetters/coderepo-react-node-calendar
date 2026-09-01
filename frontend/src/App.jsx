@@ -191,6 +191,7 @@ export default function App() {
     const [profiles, setProfiles] = useState(null);
     const [profileError, setProfileError] = useState("");
     const [selectedProfileId, setSelectedProfileId] = useState(() => localStorage.getItem("calendar-profile-id") || "");
+    const [switchingFrom, setSwitchingFrom] = useState("");
     const loadProfiles = useCallback(async () => {
         try { setProfileError(""); setProfiles(await profileApi.list()); }
         catch (error) { setProfileError(error.message); setProfiles([]); }
@@ -265,7 +266,7 @@ export default function App() {
     };
     const logout = async () => {
         try { if (hasSessionToken()) await authApi.logout(); } catch {}
-        setProfileToken(""); setSessionToken(""); localStorage.removeItem("calendar-profile-id"); setSelectedProfileId(""); setAccount(null); setProfiles(null); setAuthError("");
+        setProfileToken(""); setSessionToken(""); localStorage.removeItem("calendar-profile-id"); setSelectedProfileId(""); setSwitchingFrom(""); setAccount(null); setProfiles(null); setAuthError("");
     };
     const selectProfile = async (profile) => {
         try {
@@ -274,12 +275,13 @@ export default function App() {
             setProfileToken(result.token);
             localStorage.setItem("calendar-profile-id", profile._id);
             setSelectedProfileId(String(profile._id));
+            setSwitchingFrom("");
         } catch (error) { setProfileError(error.message); }
     };
     if (bootstrapping) return <AppBootScreen />;
     if (!account) return <WorkspaceLogin error={authError} loading={authLoading} onLogin={login} />;
     if (activeProfile) {
-        return <CalendarWorkspace activeProfile={activeProfile} key={activeProfile._id} onLogout={logout} onSwitchProfile={() => { localStorage.removeItem("calendar-profile-id"); setProfileToken(""); setSelectedProfileId(""); }} />;
+        return <CalendarWorkspace activeProfile={activeProfile} key={activeProfile._id} onLogout={logout} onSwitchProfile={() => { setSwitchingFrom(selectedProfileId); localStorage.removeItem("calendar-profile-id"); setProfileToken(""); setSelectedProfileId(""); }} />;
     }
-    return <ProfilePicker error={profileError} loading={profiles === null} onLogout={logout} onRetry={loadProfiles} profiles={profiles || []} onSelect={selectProfile} />;
+    return <ProfilePicker error={profileError} loading={profiles === null} onLogout={logout} onRetry={loadProfiles} profiles={(profiles || []).filter((profile) => String(profile._id) !== switchingFrom)} onSelect={selectProfile} switchingFrom={profiles?.find((profile) => String(profile._id) === switchingFrom)} />;
 }

@@ -1,12 +1,13 @@
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { ProfileAvatar } from "./ProfileAvatar.jsx";
 
-export function ProfilePicker({ error = "", loading = false, onLogout, onRetry, onSelect, profiles = [] }) {
+export function ProfilePicker({ error = "", loading = false, onLogout, onRetry, onSelect, profiles = [], switchingFrom = null }) {
     return <main className="profile-picker-page">
         <section className="profile-picker-card" aria-labelledby="profile-picker-title">
             <div className="profile-picker-mark"><span className="brand-date"><span className="brand-binding" />31</span></div>
             <h1 id="profile-picker-title">Choose an account</h1>
             <p className="profile-picker-subtitle">to continue to Calendar</p>
+            {switchingFrom && <p className="profile-picker-current">Signed in as {switchingFrom.name}</p>}
             {loading && <div className="profile-picker-status" role="status"><span className="profile-loader" />Loading accounts…</div>}
             {!loading && error && <div className="profile-picker-error" role="alert"><div><strong>Accounts couldn’t be loaded</strong><span>{error}</span></div><button onClick={onRetry}>Try again</button></div>}
             {!loading && !error && <ul className="profile-account-list">
@@ -23,7 +24,7 @@ export function ProfilePicker({ error = "", loading = false, onLogout, onRetry, 
                     </button>
                 </li>
             </ul>}
-            {!loading && !error && profiles.length === 0 && <div className="profile-picker-status">No accounts are available.</div>}
+            {!loading && !error && profiles.length === 0 && <div className="profile-picker-status">{switchingFrom ? "No other accounts are available." : "No accounts are available."}</div>}
         </section>
         <footer className="workspace-login-footer"><span>English (United States)</span><span>Privacy</span><span>Terms</span></footer>
     </main>;

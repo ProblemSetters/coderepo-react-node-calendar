@@ -795,6 +795,7 @@ dialog::backdrop { background: rgb(32 33 36 / 18%); }
 .profile-picker-mark .brand-date { width: 40px; height: 40px; font-size: 18px; }
 .profile-picker-card h1 { margin: 0; color: var(--ink); font-size: 24px; font-weight: 400; line-height: 32px; text-align: center; }
 .profile-picker-subtitle { margin: 8px 0 32px; color: var(--ink); font-size: 16px; line-height: 24px; text-align: center; }
+.profile-picker-current { margin: -24px 0 24px; color: var(--muted); font-size: 13px; text-align: center; }
 .profile-account-list { margin: 0; padding: 0; border-top: 1px solid var(--border); list-style: none; }
 .profile-account-list > li + li { border-top: 1px solid var(--border); }
 .profile-account { display: flex; width: 100%; align-items: center; gap: 18px; padding: 14px 24px; border: 0; background: transparent; color: var(--ink); text-align: left; }
