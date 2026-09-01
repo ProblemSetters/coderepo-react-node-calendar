@@ -21,7 +21,7 @@ const SPREAD_FIRST_DAY = -45;
 const SPREAD_LAST_DAY = 60;
 const SUPPORTED_TYPES = new Set(["event", "task", "outOfOffice", "focusTime", "workingLocation", "appointmentSchedule"]);
 
-const todayKey = localDateKey(new Date(), DEMO_TIME_ZONE);
+const todayKey = process.env.DEMO_TODAY || localDateKey(new Date(), DEMO_TIME_ZONE);
 const dayKey = (dayOffset) => addCalendarDays(todayKey, dayOffset);
 const date = (dayOffset, hour, minute = 0) => zonedDateTime(dayKey(dayOffset), hour * 60 + minute, DEMO_TIME_ZONE);
 const isWeekend = (dayOffset) => [0, 6].includes(dayOfWeek(dayKey(dayOffset)));
@@ -110,7 +110,7 @@ function buildEventRows(profiles, calendarsByKey) {
     };
 
     const recurringRows = [
-    event(alex, { calendar: "work", title: "Weekly product planning", description: "Review priorities, risks, and the next delivery window.", location: "Conference room Maple", startAt: date(-7, 9), endAt: date(-7, 10), recurrence: recurrence("weekly"), ...invited([jordan, taylor, riley], ["accepted", "accepted", "tentative"]) }),
+    event(alex, { calendar: "work", title: "Weekly product planning", description: "Review priorities, risks, and the next delivery window.", location: "Conference room Maple", startAt: date(-7, 10), endAt: date(-7, 11), recurrence: recurrence("weekly"), ...invited([jordan, taylor, riley], ["accepted", "accepted", "tentative"]) }),
     event(alex, { title: "Office", type: "workingLocation", description: "Working from the office today.", location: "Office", startAt: date(-7, 0), endAt: date(-6, 0), allDay: true, recurrence: recurrence("weekly", { daysOfWeek: [2, 4] }) }),
     event(jordan, { calendar: "work", title: "Delivery stand-up", description: "Daily progress and blockers.", startAt: date(-8, 9, 15), endAt: date(-8, 9, 30), recurrence: recurrence("weekdays", { count: 60 }), ...invited([riley], ["accepted"]) }),
     event(jordan, { title: "Home", type: "workingLocation", description: "Working remotely.", location: "Home", startAt: date(-9, 0), endAt: date(-8, 0), allDay: true, recurrence: recurrence("weekly", { daysOfWeek: [1, 3] }) }),
@@ -143,35 +143,90 @@ function buildEventRows(profiles, calendarsByKey) {
     { owner: casey, title: "Write launch brief", type: "focusTime", hour: 10, minutes: 120 },
     { owner: alex, title: "Read research notes", type: "task", hour: 18, minutes: 30 },
     ];
-
     const workdayOffsets = [];
     for (let offset = SPREAD_FIRST_DAY; offset <= SPREAD_LAST_DAY; offset += 1) {
         if (!isWeekend(offset)) workdayOffsets.push(offset);
     }
 
-    const spreadRows = workdayOffsets.flatMap((offset, dayIndex) => {
-        const perDay = [3, 1, 2, 4, 2, 3, 1, 2][dayIndex % 8];
-        return Array.from({ length: perDay }, (unused, slot) => {
-            const template = spreadTemplates[(dayIndex * 3 + slot * 7) % spreadTemplates.length];
-            const { owner, guests = [], statuses = [], hour, minutes, calendar, ...details } = template;
-            const startAt = date(offset, hour + slot);
-            return event(owner, {
-                ...details,
-                ...(calendar ? { calendar } : {}),
-                startAt,
-                endAt: new Date(startAt.getTime() + minutes * 60000),
-                ...(guests.length ? invited(guests, statuses) : {}),
-            });
-        });
+    // Whether a repeating row lands on a day, judged from its pattern rather than by expanding it.
+    const repeatCoversDay = (row, offset) => {
+        const anchorKey = localDateKey(row.startAt, DEMO_TIME_ZONE);
+        if (dayKey(offset) < anchorKey) return false;
+        if (dayKey(offset) === anchorKey) return true;
+        const frequency = row.recurrence?.frequency;
+        if (frequency === "weekdays") return !isWeekend(offset);
+        if (frequency === "weekly") return (row.recurrence.daysOfWeek || []).includes(dayOfWeek(dayKey(offset)));
+        return false;
+    };
+
+    const minutesOf = (value) => { const at = partsAt(value, DEMO_TIME_ZONE); return at.hour * 60 + at.minute; };
+    const hoursOf = (name) => profiles.find((profile) => profile.name === name).workingHours;
+
+    const busy = new Map();
+    const busyKey = (name, offset) => `${name}|${offset}`;
+    const slotsFor = (name, offset) => busy.get(busyKey(name, offset)) || [];
+    const reserve = (name, offset, startMinute, endMinute) => {
+        busy.set(busyKey(name, offset), [...slotsFor(name, offset), { startMinute, endMinute }]);
+    };
+    const isFree = (name, offset, startMinute, endMinute) => !slotsFor(name, offset)
+        .some((slot) => startMinute < slot.endMinute && endMinute > slot.startMinute);
+    const isAway = (name, offset) => slotsFor(name, offset).some((slot) => slot.endMinute - slot.startMinute >= 24 * 60);
+
+    for (const row of recurringRows) {
+        if (row.allDay) continue;
+        const startMinute = minutesOf(row.startAt);
+        const endMinute = startMinute + (row.endAt - row.startAt) / 60000;
+        for (const offset of workdayOffsets) {
+            if (!repeatCoversDay(row, offset)) continue;
+            for (const name of [row.organizer, ...(row.participants || [])]) reserve(name, offset, startMinute, endMinute);
+        }
+    }
+
+    // A day off lands on the first workday with no working location on it, so nobody is
+    // ever shown at the office and out of office at once.
+    const claimsALocation = (name, offset) => recurringRows
+        .some((row) => row.type === "workingLocation" && row.organizer === name && repeatCoversDay(row, offset));
+    const daysOff = [
+        { owner: alex, preferred: 21, description: "Unavailable for meetings." },
+        { owner: jordan, preferred: 10, description: "Unavailable for the day." },
+        { owner: taylor, preferred: 24, description: "Unavailable all day." },
+        { owner: riley, preferred: 31, description: "Unavailable for the day." },
+        { owner: casey, preferred: 16, description: "Unavailable for meetings." },
+    ].map(({ owner, preferred, description }) => {
+        const offset = workdayOffsets.filter((day) => day >= preferred).find((day) => !claimsALocation(owner.name, day));
+        if (offset === undefined) throw new Error(`No clear out-of-office day for ${owner.name}.`);
+        reserve(owner.name, offset, 0, 24 * 60);
+        return { owner, offset, description };
     });
 
+    // A repeating invitation on someone's day off is declined for that date only, which is
+    // what a real calendar does when the invitee is away.
+    for (const { owner, offset } of daysOff) {
+        for (const row of recurringRows) {
+            const isGuest = (row.participantIds || []).some((id) => String(id) === String(owner._id));
+            if (!isGuest || !repeatCoversDay(row, offset)) continue;
+            row.recurrenceResponseOverrides = [...(row.recurrenceResponseOverrides || []), {
+                personId: owner._id,
+                occurrenceStartAt: date(offset, 0, minutesOf(row.startAt)),
+                scope: "this",
+                status: "declined",
+                respondedAt,
+            }];
+        }
+    }
+
+    const outOfOfficeRows = daysOff.map(({ owner, offset, description }) => event(owner, {
+        title: "Out of office",
+        type: "outOfOffice",
+        description,
+        startAt: date(offset, 0),
+        endAt: date(offset + 1, 0),
+        allDay: true,
+    }));
+
     const milestoneRows = [
-        event(alex, { calendar: "birthdays", title: "Jordan’s birthday", description: "Birthday reminder.", startAt: date(3, 0), endAt: date(4, 0), allDay: true }),
-        event(alex, { title: "Out of office", type: "outOfOffice", description: "Unavailable for meetings.", startAt: date(21, 0), endAt: date(23, 0), allDay: true }),
-        event(jordan, { title: "Out of office", type: "outOfOffice", description: "Unavailable for the day.", startAt: date(10, 0), endAt: date(11, 0), allDay: true }),
-        event(taylor, { title: "Out of office", type: "outOfOffice", description: "Unavailable all day.", startAt: date(24, 0), endAt: date(25, 0), allDay: true }),
-        event(riley, { title: "Out of office", type: "outOfOffice", description: "Unavailable for the day.", startAt: date(31, 0), endAt: date(32, 0), allDay: true }),
-        event(casey, { title: "Out of office", type: "outOfOffice", description: "Unavailable for meetings.", startAt: date(16, 0), endAt: date(17, 0), allDay: true }),
+        event(alex, { calendar: "birthdays", title: "Jordan\u2019s birthday", description: "Birthday reminder.", startAt: date(3, 0), endAt: date(4, 0), allDay: true }),
+        ...outOfOfficeRows,
         event(taylor, { title: "Out of office", type: "outOfOffice", description: "Unavailable after lunch.", startAt: date(4, 13), endAt: date(4, 18) }),
         event(alex, { title: "Office hours", type: "appointmentSchedule", description: "Open slots for project questions.", location: "Video call", startAt: date(6, 15), endAt: date(6, 17) }),
         event(jordan, { title: "Mentoring slots", type: "appointmentSchedule", description: "Book a 30-minute mentoring conversation.", startAt: date(12, 14), endAt: date(12, 16) }),
@@ -179,8 +234,88 @@ function buildEventRows(profiles, calendarsByKey) {
         event(riley, { title: "Technical office hours", type: "appointmentSchedule", description: "Open slots for architecture questions.", startAt: date(27, 15), endAt: date(27, 17) }),
         event(casey, { title: "Communications office hours", type: "appointmentSchedule", description: "Open slots for launch messaging.", startAt: date(9, 11), endAt: date(9, 13) }),
     ];
+    reserve(taylor.name, 4, 13 * 60, 18 * 60);
+
+    // Each rotation pick lands on the first half hour everyone involved is free and still working.
+    const findSlot = (template, offset) => {
+        const people = [template.owner.name, ...(template.guests || []).map((guest) => guest.name)];
+        if (people.some((name) => isAway(name, offset))) return null;
+        const windowStart = Math.max(...people.map((name) => hoursOf(name).startMinute));
+        const windowEnd = Math.min(...people.map((name) => hoursOf(name).endMinute));
+        const candidates = [template.hour * 60, ...Array.from({ length: 24 }, (unused, step) => windowStart + step * 30)];
+        return candidates.find((startMinute) => startMinute >= windowStart
+            && startMinute + template.minutes <= windowEnd
+            && people.every((name) => isFree(name, offset, startMinute, startMinute + template.minutes))) ?? null;
+    };
+
+    const spreadRows = [];
+    workdayOffsets.forEach((offset, dayIndex) => {
+        const perDay = [3, 1, 2, 4, 2, 3, 1, 2][dayIndex % 8];
+        for (let slot = 0; slot < perDay; slot += 1) {
+            const template = spreadTemplates[(dayIndex * 3 + slot * 7) % spreadTemplates.length];
+            const startMinute = findSlot(template, offset);
+            if (startMinute === null) continue;
+            const { owner, guests = [], statuses = [], hour, minutes, calendar, ...details } = template;
+            const startAt = date(offset, 0, startMinute);
+            for (const name of [owner.name, ...guests.map((guest) => guest.name)]) reserve(name, offset, startMinute, startMinute + minutes);
+            spreadRows.push(event(owner, {
+                ...details,
+                ...(calendar ? { calendar } : {}),
+                startAt,
+                endAt: new Date(startAt.getTime() + minutes * 60000),
+                ...(guests.length ? invited(guests, statuses) : {}),
+            }));
+        }
+    });
+
+    assertScheduleIsCoherent();
 
     return [...recurringRows, ...spreadRows, ...milestoneRows];
+
+    // Runs on every seed, so a bad rotation fails here rather than reaching an interview.
+    function assertScheduleIsCoherent() {
+        const daysOffByName = new Map(daysOff.map(({ owner, offset }) => [owner.name, offset]));
+        const fail = (reason) => { throw new Error(`Seed schedule is incoherent: ${reason}.`); };
+
+        for (const [key, slots] of busy) {
+            const timed = slots.filter((slot) => slot.endMinute - slot.startMinute < 24 * 60);
+            for (let first = 0; first < timed.length; first += 1) {
+                for (let second = first + 1; second < timed.length; second += 1) {
+                    if (timed[first].startMinute >= timed[second].endMinute || timed[first].endMinute <= timed[second].startMinute) continue;
+                    fail(`${key.replace("|", " is double booked on day ")}`);
+                }
+            }
+        }
+
+        for (const row of spreadRows) {
+            const offset = offsetOfRow(row);
+            const startMinute = minutesOf(row.startAt);
+            const endMinute = startMinute + (row.endAt - row.startAt) / 60000;
+            if (offset === null || isWeekend(offset)) fail(`"${row.title}" does not land on a workday`);
+            for (const name of [row.organizer, ...(row.participants || [])]) {
+                const hours = hoursOf(name);
+                if (startMinute < hours.startMinute || endMinute > hours.endMinute) fail(`"${row.title}" falls outside ${name}'s working hours`);
+                if (daysOffByName.get(name) === offset) fail(`${name} has "${row.title}" on their day off`);
+            }
+        }
+
+        for (const [name, offset] of daysOffByName) {
+            const locations = recurringRows.filter((row) => row.type === "workingLocation" && row.organizer === name && repeatCoversDay(row, offset));
+            if (locations.length) fail(`${name} claims a working location on their day off`);
+        }
+
+        for (const offset of workdayOffsets) {
+            for (const profile of profiles) {
+                const locations = recurringRows.filter((row) => row.type === "workingLocation" && row.organizer === profile.name && repeatCoversDay(row, offset));
+                if (locations.length > 1) fail(`${profile.name} claims ${locations.length} working locations on day ${offset}`);
+            }
+        }
+    }
+
+    function offsetOfRow(row) {
+        const key = localDateKey(row.startAt, DEMO_TIME_ZONE);
+        return workdayOffsets.find((offset) => dayKey(offset) === key) ?? null;
+    }
 }
 
 function validateEventRows(rows, profiles, calendars) {
