@@ -51,6 +51,6 @@ Your task is to fix the availability flow on the backend.
 - Reported busy blocks are trimmed to the window that was asked about.
 - Find a time never proposes a slot that clashes with the organizer or any guest, and never proposes one outside working hours.
 
-**Note:** Review `technical-specs/MeetWithAndSuggestedTimes.md` for the complete contract, including the request and response shapes for both availability endpoints.
+**Note:** Review `technical-specs/MeetingConflicts.md` for the complete contract, including the busy rules and the request and response shapes for both availability endpoints.
 
 **Note:** The acceptance criteria for this task require your solution to pass all predefined test cases. Use the failing tests to guide debugging.

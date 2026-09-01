@@ -592,6 +592,24 @@ dialog::backdrop { background: rgb(32 33 36 / 18%); }
 .editor-time-options button[aria-selected="true"] { background: var(--field); color: var(--accent-ink); }
 .editor-time-combobox.contextual .editor-time-options { right: 0; left: auto; width: 260px; }
 .editor-time-combobox.contextual .editor-time-options button { min-height: 46px; font-size: 15px; }
+.editor-find-time-row .find-time-button { padding: 7px 16px; border: 1px solid var(--border); border-radius: 100px; background: var(--surface); color: var(--blue); font-size: 14px; font-weight: 500; }
+.editor-find-time-row .find-time-button:hover { background: var(--accent-wash); }
+.suggested-times-row { align-items: start; }
+.suggested-times { min-width: 0; }
+.suggested-times-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 6px 0; border: 0; background: none; color: var(--ink); }
+.suggested-times-toggle h3 { margin: 0; font-size: 14px; font-weight: 500; }
+.suggested-times-toggle .material-icon { color: var(--muted); }
+.suggested-times-note { margin: 2px 0 8px; color: var(--muted); font-size: 12px; }
+.suggested-times-error { color: var(--danger); }
+.suggested-times-error button { padding: 0; border: 0; background: none; color: var(--blue); text-decoration: underline; }
+.suggested-time { display: flex; position: relative; align-items: center; gap: 12px; margin-bottom: 8px; padding: 12px 12px 12px 14px; border-radius: 8px; background: var(--hover); cursor: pointer; }
+.suggested-time input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.suggested-time-mark { width: 18px; height: 18px; flex: none; border: 2px solid var(--muted); border-radius: 50%; }
+.suggested-time input:checked + .suggested-time-mark { border-color: var(--blue); box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 9px var(--blue); }
+.suggested-time input:focus-visible + .suggested-time-mark { outline: 2px solid var(--blue); outline-offset: 2px; }
+.suggested-time-label { font-size: 13px; }
+.suggested-times-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+.suggested-times-footer .link-button { padding: 0; border: 0; background: none; color: var(--blue); font-size: 13px; }
 .inline-range-error { display: block; margin: 7px 0 0; color: var(--danger); font-size: 11px; }
 .checkbox-label { display: flex !important; grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px !important; margin-top: 8px; color: var(--ink-strong) !important; font-size: 14px !important; }
 .checkbox-label input { width: 18px; height: 18px; accent-color: var(--blue); }

@@ -11,6 +11,7 @@ import { TimeCombobox } from "./TimeCombobox.jsx";
 import { combineDateAndTime, formatTimeInput, timeValue } from "./editor-date-time.js";
 import { calendarColors } from "../calendar/calendar-colors.js";
 import { RepeatSelector } from "./RepeatSelector.jsx";
+import { SuggestedTimesSection } from "./SuggestedTimesSection.jsx";
 
 const palette = [
     { color: "", label: "Calendar color" },
@@ -112,6 +113,20 @@ export function EventEditor({ calendars, draft, onClose, onDelete, onSave }) {
         }, conflictPayload ? 300 : 0);
         return () => window.clearTimeout(timer);
     }, [conflictKey, conflictPayload]);
+    const [findTimeOpen, setFindTimeOpen] = useState(false);
+    const durationMinutes = useMemo(() => {
+        if (!startAt || !endAt || endAt <= startAt) return 30;
+        return Math.min(240, Math.max(15, Math.round((endAt - startAt) / 60000 / 15) * 15));
+    }, [startAt, endAt]);
+    const applySuggestion = (suggestion) => {
+        const start = new Date(suggestion.startAt);
+        const end = new Date(suggestion.endAt);
+        setStartDate(dateKey(start));
+        setEndDate(dateKey(end));
+        setStartTime(timeValue(start));
+        setEndTime(timeValue(end));
+        markDirty();
+    };
     const markDirty = () => setDirty(true);
     const close = () => { if (!saving) { if (dirty) setDiscardConfirmation(true); else onClose(); } };
     const applyShiftedEnd = (nextStart, previousStart = startAt, previousEnd = endAt) => {
@@ -200,6 +215,10 @@ export function EventEditor({ calendars, draft, onClose, onDelete, onSave }) {
             {!allDay && !conflictPending && conflictState.workingHoursWarnings.length > 0 && <div className="guest-hours-warning" role="status"><MaterialIcon size={19}>schedule</MaterialIcon><div><strong>Outside working hours</strong>{conflictState.workingHoursWarnings.map(({ person }) => <span key={person._id}>{person.name}: {formatWorkingMinute(person.workingHours.startMinute)}–{formatWorkingMinute(person.workingHours.endMinute)} ({person.timeZone.replaceAll("_", " ")})</span>)}</div></div>}
             {!conflictPending && !conflictState.error && conflictPayload && conflictState.conflicts.length === 0 && (allDay || conflictState.workingHoursWarnings.length === 0) && <p className="guest-available"><MaterialIcon size={16}>check_circle</MaterialIcon>All guests are available</p>}
         </div></div>
+        {!allDay && guestIds.length > 0 && !findTimeOpen && <div className="form-row editor-find-time-row"><MaterialIcon>history</MaterialIcon>
+            <button className="find-time-button" data-testid="find-a-time" type="button" onClick={() => setFindTimeOpen(true)}>Find a time</button>
+        </div>}
+        {!allDay && findTimeOpen && <SuggestedTimesSection cursor={startAt || new Date()} durationMinutes={durationMinutes} onChoose={applySuggestion} people={guests} />}
         <div className="form-row"><MaterialIcon>subject</MaterialIcon><label><span className="sr-only">Description</span><textarea name="description" maxLength={2000} rows={3} defaultValue={defaults.description} placeholder="Add description" /></label></div>
         <div className="form-row"><MaterialIcon>palette</MaterialIcon><fieldset className="color-palette"><legend>Event color</legend>{palette.map(({ color, label }) => <label title={label} key={label} className={color ? "color-choice" : "color-choice calendar-color-choice"} style={color ? { "--choice": color } : undefined}><input name="color" type="radio" value={color} defaultChecked={(defaults.color || "") === color} /><span>{color ? <MaterialIcon size={15}>check</MaterialIcon> : <MaterialIcon size={17}>event</MaterialIcon>}</span><span className="sr-only">{label}</span></label>)}</fieldset></div>
         {error && <p className="form-error" role="alert">{error}</p>}
