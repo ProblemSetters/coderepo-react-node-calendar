@@ -228,9 +228,9 @@
 
 | `data-testid` | Purpose |
 | --- | --- |
-| `people-search-input` | Search the people directory. |
-| `person-option-{personId}` | Select a person from the results. |
-| `remove-person-{personId}` | Remove a selected person. |
+| `people-search-input` | Search the people directory in the sidebar. |
+| `people-option-{personId}` | Select a person from the results. |
+| `people-remove-{personId}` | Remove a selected person. |
 | `working-window-owner` | The owner's working-hours band in the comparison column. |
 | `working-window-{personId}` | A selected person's working-hours band. |
 | `suggested-time-{startAtIso}` | Choose a suggested slot. |

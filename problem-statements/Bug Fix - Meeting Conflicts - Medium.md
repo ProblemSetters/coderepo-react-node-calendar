@@ -34,11 +34,12 @@ Your task is to fix the availability flow on the backend.
 - Click **Create** and choose **Event**. Put it on the same day, starting 30 minutes before Team roadmap and ending 30 minutes after it, then add the same two guests.
 - Observe that the editor reports "All guests are available", although Team roadmap falls inside this window and neither guest declined it.
   ![Editor reporting all guests available while both guests are busy](ps-images/02-all-guests-available.png)
-- Still in that event, open **Find a time**. Observe that a suggested slot lands on a time Alex Morgan already has a meeting.
+- Cancel that event. In the sidebar, add **Jordan Smith** under **Meet with**, then click **Suggested times**.
+- Scroll the list of best available times. Observe that it offers **2:00 PM** and **2:30 PM** on the same Monday, although Alex Morgan already has Team roadmap then.
   ![Find a time offering a slot the organizer has already booked](ps-images/03-find-a-time-offers-booked-slot.png)
-- Open **Meet with** in the sidebar, add **Jordan Smith**, and move to a weekday two weeks ahead. Her weekly meeting repeats that day, but her column is empty and no clash is reported, although the same meeting is reported correctly in its first week.
-  ![Meet with showing no clash on a day the weekly meeting repeats](ps-images/04-meet-with-no-clash.png)
-- Create an event on the day **Jordan Smith** is out of office all day and add her as a guest. Observe that she is reported as available.
+- With Jordan Smith still selected, move forward to a weekday about two weeks ahead. Her repeating meeting falls on that day, but her column is empty and no clash is reported.
+  ![Meet with showing no clash on a day the repeating meeting lands](ps-images/04-meet-with-no-clash.png)
+- Create an event on the Friday **Jordan Smith** is out of office all day, and add her as a guest. Observe that she is reported as available.
   ![Editor reporting a guest available while they are out of office](ps-images/05-out-of-office-guest-available.png)
 
 ## Expected Behavior
