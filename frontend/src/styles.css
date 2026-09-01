@@ -143,9 +143,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .view-menu { top: calc(100% + 8px); right: 0; width: 216px; }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
-.sidebar { width: 256px; min-width: 0; overflow-x: hidden; overflow-y: auto; background: var(--surface-muted); scrollbar-width: thin; transition: margin-left 220ms cubic-bezier(.4, 0, .2, 1); }
+.sidebar { width: 256px; min-width: 0; overflow-x: hidden; overflow-y: auto; background: var(--surface-muted); scrollbar-width: none; transition: margin-left 220ms cubic-bezier(.4, 0, .2, 1); }
+.sidebar::-webkit-scrollbar { width: 0; height: 0; }
 .sidebar-collapsed .sidebar { margin-left: -256px; }
-.sidebar-inner { width: 256px; padding: 16px 12px 24px 8px; transition: opacity 140ms ease; }
+.sidebar-inner { display: flex; width: 256px; min-height: 100%; flex-direction: column; padding: 16px 12px 8px 8px; transition: opacity 140ms ease; }
 .sidebar-collapsed .sidebar-inner { opacity: 0; }
 .create-menu-anchor { width: max-content; margin-bottom: 18px; }
 .create-button { display: flex; height: 48px; align-items: center; gap: 12px; margin: 0; padding: 0 12px 0 14px; border: 0; border-radius: 16px; background: var(--surface); color: var(--ink-strong); box-shadow: 0 1px 2px rgb(60 64 67 / 30%), 0 1px 3px 1px rgb(60 64 67 / 15%); font-size: 14px; font-weight: 500; transition: box-shadow 150ms, background 150ms; }
@@ -290,7 +291,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-menu { width: 32px; height: 32px; opacity: 0; }
 .calendar-row:hover .calendar-menu, .calendar-menu:focus-visible, .calendar-row.menu-open .calendar-menu { opacity: 1; }
 .sidebar-error { margin: 10px 16px; color: var(--danger); font-size: 12px; }
-.sidebar-footer { display: flex; gap: 4px; padding: 16px 8px 8px 16px; color: var(--muted); font-size: 12px; }
+.sidebar-footer { display: flex; gap: 4px; margin-top: auto; padding: 24px 8px 8px 16px; color: var(--muted); font-size: 12px; }
 .sidebar-footer a { color: inherit; text-decoration: none; }
 .sidebar-footer a:hover { text-decoration: underline; }
 .sidebar-scrim { display: none; }
