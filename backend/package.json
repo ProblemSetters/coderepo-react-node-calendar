@@ -9,8 +9,7 @@
         "start": "bun src/index.js",
         "dev": "bun --watch src/index.js",
         "seed": "bun src/scripts/seed.js",
-        "test": "cross-env NODE_ENV=test CALENDAR_TEST_AUTH_BYPASS=true NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-        "test:coverage": "cross-env NODE_ENV=test CALENDAR_TEST_AUTH_BYPASS=true NODE_OPTIONS=--experimental-vm-modules jest --coverage --runInBand"
+        "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand"
     },
     "dependencies": {
         "bcryptjs": "3.0.2",
@@ -25,7 +24,6 @@
         "cross-env": "7.0.3",
         "jest": "30.3.0",
         "jest-junit": "17.0.0",
-        "mongodb-memory-server": "10.1.4",
         "supertest": "7.2.2"
     }
 }

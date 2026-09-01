@@ -1,5 +1,10 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.env") });
+
 import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -8,11 +13,50 @@ import { WorkspaceAccount } from "../../src/features/auth/workspace-account.mode
 import { Calendar } from "../../src/features/calendars/calendar.model.js";
 import { Event } from "../../src/features/events/event.model.js";
 import { Person } from "../../src/features/people/person.model.js";
-import { config } from "../../src/shared/config/index.js";
+import { loadConfig } from "../../src/shared/config/index.js";
 
-let database;
+const config = loadConfig(true);
+const WORKSPACE_EMAIL = "regression@calendar.com";
+const WORKSPACE_PASSWORD = "password123";
+const profileTokens = new Map();
+
+const api = () => ({
+    get: (url) => request(app).get(url).set("Authorization", `Bearer ${ownerToken}`),
+    post: (url) => request(app).post(url).set("Authorization", `Bearer ${ownerToken}`),
+    patch: (url) => request(app).patch(url).set("Authorization", `Bearer ${ownerToken}`),
+    delete: (url) => request(app).delete(url).set("Authorization", `Bearer ${ownerToken}`),
+});
+
+async function workspaceOnlyToken(person) {
+    await WorkspaceAccount.updateOne(
+        { email: WORKSPACE_EMAIL },
+        { $set: { name: "Regression workspace", passwordHash: await bcrypt.hash(WORKSPACE_PASSWORD, 4), active: true }, $addToSet: { allowedProfileIds: person._id } },
+        { upsert: true },
+    );
+    const login = await request(app).post("/api/v1/auth/login").send({ email: WORKSPACE_EMAIL, password: WORKSPACE_PASSWORD });
+    return login.body.data.token;
+}
+
+async function asProfile(person) {
+    const id = String(person._id);
+    if (profileTokens.has(id)) return profileTokens.get(id);
+    await WorkspaceAccount.updateOne(
+        { email: WORKSPACE_EMAIL },
+        { $set: { name: "Regression workspace", passwordHash: await bcrypt.hash(WORKSPACE_PASSWORD, 4), active: true }, $addToSet: { allowedProfileIds: person._id } },
+        { upsert: true },
+    );
+    const login = await request(app).post("/api/v1/auth/login").send({ email: WORKSPACE_EMAIL, password: WORKSPACE_PASSWORD });
+    const switched = await request(app).post("/api/v1/auth/switch-profile")
+        .set("Authorization", `Bearer ${login.body.data.token}`)
+        .send({ profileId: id });
+    profileTokens.set(id, switched.body.data.token);
+    return switched.body.data.token;
+}
+
 let primary;
 let work;
+let owner;
+let ownerToken;
 const app = createApp();
 const eventPayload = () => ({
     calendarId: String(primary._id),
@@ -25,16 +69,18 @@ const eventPayload = () => ({
 });
 
 beforeAll(async () => {
-    database = await MongoMemoryServer.create();
-    await mongoose.connect(database.getUri("calendar_db_test"));
-}, 120000);
+    await mongoose.connect(config.mongodbUri);
+});
 
 beforeEach(async () => {
+    profileTokens.clear();
     await Promise.all([Calendar.deleteMany({}), Event.deleteMany({}), Person.deleteMany({}), WorkspaceAccount.deleteMany({})]);
+    owner = await Person.create({ name: "Workspace Owner", email: "owner@calendar.com", avatarColor: "#1a73e8", isProfile: true, sortOrder: 0 });
     [primary, work] = await Calendar.create([
-        { name: "My calendar", color: "#1a73e8", visible: true, isPrimary: true },
-        { name: "Work", color: "#0f9d58", visible: true },
+        { ownerId: owner._id, name: "My calendar", color: "#1a73e8", visible: true, isPrimary: true },
+        { ownerId: owner._id, name: "Work", color: "#0f9d58", visible: true },
     ]);
+    ownerToken = await asProfile(owner);
 });
 
 const personPayload = (overrides = {}) => ({
@@ -47,8 +93,9 @@ const personPayload = (overrides = {}) => ({
 });
 
 afterAll(async () => {
+    const collections = mongoose.connection.collections;
+    for (const key of Object.keys(collections)) await collections[key].deleteMany({});
     await mongoose.disconnect();
-    if (database) await database.stop();
 });
 
 describe("health", () => {
@@ -58,10 +105,10 @@ describe("health", () => {
         expect(response.body.data).toEqual({ status: "ok", database: "connected" });
     });
 
-    test("allows the documented Vite development fallback origin", async () => {
+    test("allows any development origin to reach the API", async () => {
         const response = await request(app).get("/api/v1/health").set("Origin", "http://localhost:3000");
         expect(response.status).toBe(200);
-        expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+        expect(response.headers["access-control-allow-origin"]).toBe("*");
     });
 });
 
@@ -110,56 +157,60 @@ describe("demo profiles", () => {
         ]);
         const meeting = await Event.create({ ...eventPayload(), calendarId: user01Calendar._id, participants: [user03.name], participantIds: [user03._id] });
 
-        const profiles = await request(app).get("/api/v1/profiles");
+        const demoAccount = await WorkspaceAccount.create({ name: "Demo workspace", email: "demo@calendar.com", passwordHash: await bcrypt.hash("password123", 4), allowedProfileIds: [user01._id, user03._id] });
+        const demoLogin = await request(app).post("/api/v1/auth/login").send({ email: "demo@calendar.com", password: "password123" });
+        const profiles = await request(app).get("/api/v1/profiles").set("Authorization", `Bearer ${demoLogin.body.data.token}`);
+        expect(demoAccount.allowedProfileIds).toHaveLength(2);
         expect(profiles.body.data.map((profile) => profile.name)).toEqual(["Alex Morgan", "Taylor Johnson"]);
         expect(profiles.body.data[0].busyBlocks).toBeUndefined();
 
-        const user03Calendars = await request(app).get("/api/v1/calendars").set("X-Calendar-Profile", String(user03._id));
+        const user03Calendars = await request(app).get("/api/v1/calendars").set("Authorization", `Bearer ${await asProfile(user03)}`);
         expect(user03Calendars.body.data.map((calendar) => String(calendar._id))).toEqual([String(user03Calendar._id)]);
-        const user03Events = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${user03Calendar._id}`).set("X-Calendar-Profile", String(user03._id));
+        const user03Events = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${user03Calendar._id}`).set("Authorization", `Bearer ${await asProfile(user03)}`);
         expect(user03Events.body.data).toEqual([expect.objectContaining({ _id: String(meeting._id), editable: false })]);
-        const forbiddenUpdate = await request(app).patch(`/api/v1/events/${meeting._id}`).set("X-Calendar-Profile", String(user03._id)).send({ title: "Changed by guest" });
+        const forbiddenUpdate = await request(app).patch(`/api/v1/events/${meeting._id}`).set("Authorization", `Bearer ${await asProfile(user03)}`).send({ title: "Changed by guest" });
         expect(forbiddenUpdate.status).toBe(404);
 
-        const ownerEvents = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${user01Calendar._id}`).set("X-Calendar-Profile", String(user01._id));
+        const ownerEvents = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${user01Calendar._id}`).set("Authorization", `Bearer ${await asProfile(user01)}`);
         expect(ownerEvents.status).toBe(200);
         expect(ownerEvents.body.data).toEqual([expect.objectContaining({ _id: String(meeting._id), editable: true })]);
-        expect((await request(app).get("/api/v1/calendars").set("X-Calendar-Profile", "not-a-profile")).body.error.code).toBe("INVALID_PROFILE");
+        const malformed = jwt.sign({ sub: String(demoAccount._id), type: "profile", profileId: "not-a-profile" }, config.jwtSecret, { expiresIn: "1h", issuer: "calendar-api", audience: "calendar-assessment" });
+        expect((await request(app).get("/api/v1/calendars").set("Authorization", `Bearer ${malformed}`)).body.error.code).toBe("PROFILE_FORBIDDEN");
     });
 });
 
 describe("calendars", () => {
     test("lists calendars with the primary calendar first", async () => {
-        const response = await request(app).get("/api/v1/calendars");
+        const response = await api().get("/api/v1/calendars");
         expect(response.status).toBe(200);
         expect(response.body.data[0].isPrimary).toBe(true);
     });
 
     test("creates and updates a secondary calendar", async () => {
-        const created = await request(app).post("/api/v1/calendars").send({ name: "Personal", description: "Private appointments", color: "#a142f4", timeZone: "Asia/Kolkata" });
+        const created = await api().post("/api/v1/calendars").send({ name: "Personal", description: "Private appointments", color: "#a142f4", timeZone: "Asia/Kolkata" });
         expect(created.status).toBe(201);
         expect(created.body.data).toEqual(expect.objectContaining({ description: "Private appointments", timeZone: "Asia/Kolkata", color: "#a142f4", defaultColor: "#a142f4", visible: true, isPrimary: false }));
-        const updated = await request(app).patch(`/api/v1/calendars/${created.body.data._id}`).send({ visible: false });
+        const updated = await api().patch(`/api/v1/calendars/${created.body.data._id}`).send({ visible: false });
         expect(updated.status).toBe(200);
         expect(updated.body.data.visible).toBe(false);
     });
 
     test("rejects a duplicate calendar name", async () => {
-        const response = await request(app).post("/api/v1/calendars").send({ name: "work", color: "#a142f4" });
+        const response = await api().post("/api/v1/calendars").send({ name: "work", color: "#a142f4" });
         expect(response.status).toBe(409);
         expect(response.body.error.code).toBe("CALENDAR_NAME_CONFLICT");
     });
 
     test("rejects invalid calendar metadata", async () => {
-        const invalidZone = await request(app).post("/api/v1/calendars").send({ name: "Travel", color: "#a142f4", timeZone: "Mars/Olympus" });
+        const invalidZone = await api().post("/api/v1/calendars").send({ name: "Travel", color: "#a142f4", timeZone: "Mars/Olympus" });
         expect(invalidZone.status).toBe(400);
         expect(invalidZone.body.error.code).toBe("VALIDATION_ERROR");
-        const longDescription = await request(app).post("/api/v1/calendars").send({ name: "Travel", color: "#a142f4", description: "x".repeat(1001) });
+        const longDescription = await api().post("/api/v1/calendars").send({ name: "Travel", color: "#a142f4", description: "x".repeat(1001) });
         expect(longDescription.status).toBe(400);
     });
 
     test("displays one calendar exclusively in a single operation", async () => {
-        const response = await request(app).post(`/api/v1/calendars/${work._id}/display-only`);
+        const response = await api().post(`/api/v1/calendars/${work._id}/display-only`);
         expect(response.status).toBe(200);
         const visibility = Object.fromEntries(response.body.data.map((calendar) => [calendar.name, calendar.visible]));
         expect(visibility).toEqual({ "My calendar": false, Work: true });
@@ -169,16 +220,16 @@ describe("calendars", () => {
     });
 
     test("protects primary and non-empty calendars from deletion", async () => {
-        const primaryResponse = await request(app).delete(`/api/v1/calendars/${primary._id}`);
+        const primaryResponse = await api().delete(`/api/v1/calendars/${primary._id}`);
         expect(primaryResponse.body.error.code).toBe("PRIMARY_CALENDAR");
         await Event.create({ ...eventPayload(), calendarId: work._id });
-        const response = await request(app).delete(`/api/v1/calendars/${work._id}`);
+        const response = await api().delete(`/api/v1/calendars/${work._id}`);
         expect(response.status).toBe(409);
         expect(response.body.error.details.eventCount).toBe(1);
     });
 
     test("deletes an empty secondary calendar", async () => {
-        const response = await request(app).delete(`/api/v1/calendars/${work._id}`);
+        const response = await api().delete(`/api/v1/calendars/${work._id}`);
         expect(response.status).toBe(204);
         expect(await Calendar.exists({ _id: work._id })).toBeNull();
     });
@@ -191,24 +242,24 @@ describe("calendars", () => {
             ["delete", `/api/v1/calendars/${missingId}`],
             ["patch", "/api/v1/calendars/not-an-id"],
         ]) {
-            const response = await request(app)[method](path).send(method === "patch" ? { color: "#4285f4" } : undefined);
+            const response = await request(app)[method](path).set("Authorization", `Bearer ${ownerToken}`).send(method === "patch" ? { color: "#4285f4" } : undefined);
             expect(response.status).toBe(404);
             expect(response.body.error.code).toBe("CALENDAR_NOT_FOUND");
         }
     });
 
     test("rejects empty updates, duplicate renames, and invalid colors", async () => {
-        const empty = await request(app).patch(`/api/v1/calendars/${work._id}`).send({});
+        const empty = await api().patch(`/api/v1/calendars/${work._id}`).send({});
         expect(empty.status).toBe(400);
-        const duplicate = await request(app).patch(`/api/v1/calendars/${work._id}`).send({ name: "MY CALENDAR" });
+        const duplicate = await api().patch(`/api/v1/calendars/${work._id}`).send({ name: "MY CALENDAR" });
         expect(duplicate.status).toBe(409);
         expect(duplicate.body.error.code).toBe("CALENDAR_NAME_CONFLICT");
-        const color = await request(app).patch(`/api/v1/calendars/${work._id}`).send({ color: "blue" });
+        const color = await api().patch(`/api/v1/calendars/${work._id}`).send({ color: "blue" });
         expect(color.status).toBe(400);
     });
 
     test("trims calendar metadata and applies safe defaults", async () => {
-        const response = await request(app).post("/api/v1/calendars").send({ name: "  Personal  ", color: "#4285f4" });
+        const response = await api().post("/api/v1/calendars").send({ name: "  Personal  ", color: "#4285f4" });
         expect(response.status).toBe(201);
         expect(response.body.data).toEqual(expect.objectContaining({ name: "Personal", description: "", timeZone: "UTC", visible: true, isPrimary: false }));
     });
@@ -216,41 +267,41 @@ describe("calendars", () => {
 
 describe("events", () => {
     test("creates, retrieves, updates, lists, searches, and deletes an event", async () => {
-        const created = await request(app).post("/api/v1/events").send(eventPayload());
+        const created = await api().post("/api/v1/events").send(eventPayload());
         expect(created.status).toBe(201);
         const id = created.body.data._id;
-        expect((await request(app).get(`/api/v1/events/${id}`)).body.data.location).toBe("Room Cedar");
-        const updated = await request(app).patch(`/api/v1/events/${id}`).send({ title: "Release review" });
+        expect((await api().get(`/api/v1/events/${id}`)).body.data.location).toBe("Room Cedar");
+        const updated = await api().patch(`/api/v1/events/${id}`).send({ title: "Release review" });
         expect(updated.body.data.title).toBe("Release review");
-        const listed = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const listed = await api().get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(listed.body.data).toHaveLength(1);
-        const searched = await request(app).get(`/api/v1/events/search?q=Cedar&calendarIds=${primary._id}`);
+        const searched = await api().get(`/api/v1/events/search?q=Cedar&calendarIds=${primary._id}`);
         expect(searched.body.data).toHaveLength(1);
-        expect((await request(app).delete(`/api/v1/events/${id}`)).status).toBe(204);
+        expect((await api().delete(`/api/v1/events/${id}`)).status).toBe(204);
     });
 
     test("rejects invalid chronology and unknown calendars", async () => {
-        const chronology = await request(app).post("/api/v1/events").send({ ...eventPayload(), endAt: "2026-08-27T08:00:00.000Z" });
+        const chronology = await api().post("/api/v1/events").send({ ...eventPayload(), endAt: "2026-08-27T08:00:00.000Z" });
         expect(chronology.body.error.code).toBe("INVALID_EVENT_RANGE");
-        const calendar = await request(app).post("/api/v1/events").send({ ...eventPayload(), calendarId: new mongoose.Types.ObjectId().toString() });
+        const calendar = await api().post("/api/v1/events").send({ ...eventPayload(), calendarId: new mongoose.Types.ObjectId().toString() });
         expect(calendar.status).toBe(422);
         expect(calendar.body.error.code).toBe("INVALID_CALENDAR");
     });
 
     test("filters events by visible calendar identifiers", async () => {
         await Event.create([eventPayload(), { ...eventPayload(), calendarId: work._id, title: "Work planning" }]);
-        const response = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${work._id}`);
+        const response = await api().get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${work._id}`);
         expect(response.body.data.map((event) => event.title)).toEqual(["Work planning"]);
     });
 
     test("persists every supported calendar item type", async () => {
         const types = ["event", "task", "outOfOffice", "focusTime", "workingLocation", "appointmentSchedule"];
         for (const type of types) {
-            const response = await request(app).post("/api/v1/events").send({ ...eventPayload(), title: type, type });
+            const response = await api().post("/api/v1/events").send({ ...eventPayload(), title: type, type });
             expect(response.status).toBe(201);
             expect(response.body.data.type).toBe(type);
         }
-        const invalid = await request(app).post("/api/v1/events").send({ ...eventPayload(), type: "unsupported" });
+        const invalid = await api().post("/api/v1/events").send({ ...eventPayload(), type: "unsupported" });
         expect(invalid.status).toBe(400);
         expect(invalid.body.error.code).toBe("VALIDATION_ERROR");
     });
@@ -261,35 +312,35 @@ describe("events", () => {
             { ...eventPayload(), title: "Canceled review", description: "canceled", location: "Room Cedar", participants: ["Jordan Smith"] },
             { ...eventPayload(), title: "Remote review", location: "Online", participants: ["Taylor Johnson"] },
         ]);
-        const response = await request(app).get(`/api/v1/events/search?what=release&who=Jordan Smith&where=Cedar&exclude=canceled&from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const response = await api().get(`/api/v1/events/search?what=release&who=Jordan Smith&where=Cedar&exclude=canceled&from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(response.status).toBe(200);
         expect(response.body.data.map((event) => event.title)).toEqual(["Design review"]);
     });
 
     test("returns stable errors for invalid identifiers and payloads", async () => {
-        const missing = await request(app).get("/api/v1/events/not-an-object-id");
+        const missing = await api().get("/api/v1/events/not-an-object-id");
         expect(missing.status).toBe(404);
         expect(missing.body.error.code).toBe("EVENT_NOT_FOUND");
-        const invalid = await request(app).post("/api/v1/events").send({ title: "Incomplete" });
+        const invalid = await api().post("/api/v1/events").send({ title: "Incomplete" });
         expect(invalid.status).toBe(400);
         expect(invalid.body.error.code).toBe("VALIDATION_ERROR");
     });
 
     test("returns not-found errors for valid missing event identifiers", async () => {
         const id = new mongoose.Types.ObjectId();
-        expect((await request(app).get(`/api/v1/events/${id}`)).body.error.code).toBe("EVENT_NOT_FOUND");
-        expect((await request(app).patch(`/api/v1/events/${id}`).send({ title: "Missing" })).body.error.code).toBe("EVENT_NOT_FOUND");
-        expect((await request(app).delete(`/api/v1/events/${id}`)).body.error.code).toBe("EVENT_NOT_FOUND");
+        expect((await api().get(`/api/v1/events/${id}`)).body.error.code).toBe("EVENT_NOT_FOUND");
+        expect((await api().patch(`/api/v1/events/${id}`).send({ title: "Missing" })).body.error.code).toBe("EVENT_NOT_FOUND");
+        expect((await api().delete(`/api/v1/events/${id}`)).body.error.code).toBe("EVENT_NOT_FOUND");
     });
 
     test("validates partial updates against the complete persisted event", async () => {
         const event = await Event.create(eventPayload());
-        const range = await request(app).patch(`/api/v1/events/${event._id}`).send({ endAt: "2026-08-27T08:59:00.000Z" });
+        const range = await api().patch(`/api/v1/events/${event._id}`).send({ endAt: "2026-08-27T08:59:00.000Z" });
         expect(range.status).toBe(400);
         expect(range.body.error.code).toBe("INVALID_EVENT_RANGE");
-        const calendar = await request(app).patch(`/api/v1/events/${event._id}`).send({ calendarId: new mongoose.Types.ObjectId() });
+        const calendar = await api().patch(`/api/v1/events/${event._id}`).send({ calendarId: new mongoose.Types.ObjectId() });
         expect(calendar.status).toBe(422);
-        const empty = await request(app).patch(`/api/v1/events/${event._id}`).send({});
+        const empty = await api().patch(`/api/v1/events/${event._id}`).send({});
         expect(empty.status).toBe(400);
         expect((await Event.findById(event._id).lean()).endAt.toISOString()).toBe("2026-08-27T10:00:00.000Z");
     });
@@ -300,7 +351,7 @@ describe("events", () => {
             { ...eventPayload(), title: "Crosses start", startAt: "2026-08-26T23:30:00.000Z", endAt: "2026-08-27T00:30:00.000Z" },
             { ...eventPayload(), title: "Starts at end", startAt: "2026-08-28T00:00:00.000Z", endAt: "2026-08-28T01:00:00.000Z" },
         ]);
-        const response = await request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const response = await api().get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(response.body.data.map((event) => event.title)).toEqual(["Crosses start"]);
     });
 
@@ -309,13 +360,13 @@ describe("events", () => {
             { ...eventPayload(), title: "Literal [review]", organizer: "A. Person", participants: ["Sam+Lee"] },
             { ...eventPayload(), title: "Next day", startAt: "2026-08-28T09:00:00.000Z", endAt: "2026-08-28T10:00:00.000Z" },
         ]);
-        const literal = await request(app).get(`/api/v1/events/search?what=${encodeURIComponent("[review]")}&calendarIds=${primary._id}`);
+        const literal = await api().get(`/api/v1/events/search?what=${encodeURIComponent("[review]")}&calendarIds=${primary._id}`);
         expect(literal.body.data.map((event) => event.title)).toEqual(["Literal [review]"]);
-        const participant = await request(app).get(`/api/v1/events/search?who=${encodeURIComponent("Sam+Lee")}&calendarIds=${primary._id}`);
+        const participant = await api().get(`/api/v1/events/search?who=${encodeURIComponent("Sam+Lee")}&calendarIds=${primary._id}`);
         expect(participant.body.data).toHaveLength(1);
-        const date = await request(app).get(`/api/v1/events/search?from=2026-08-28T00:00:00.000Z&to=2026-08-29T00:00:00.000Z&calendarIds=${primary._id}`);
+        const date = await api().get(`/api/v1/events/search?from=2026-08-28T00:00:00.000Z&to=2026-08-29T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(date.body.data.map((event) => event.title)).toEqual(["Next day"]);
-        const invalid = await request(app).get(`/api/v1/events/search?from=2026-08-29&to=2026-08-28&calendarIds=${primary._id}`);
+        const invalid = await api().get(`/api/v1/events/search?from=2026-08-29&to=2026-08-28&calendarIds=${primary._id}`);
         expect(invalid.status).toBe(400);
     });
 
@@ -326,7 +377,7 @@ describe("events", () => {
             personPayload({ isProfile: true }),
         ]);
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
-        const created = await request(app).post("/api/v1/events").set("X-Calendar-Profile", String(owner._id)).send({
+        const created = await request(app).post("/api/v1/events").set("Authorization", `Bearer ${await asProfile(owner)}`).send({
             ...eventPayload(),
             calendarId: String(ownerCalendar._id),
             participantIds: [String(user02._id), String(user03._id)],
@@ -336,17 +387,17 @@ describe("events", () => {
         expect(created.body.data.responseSummary).toEqual({ needsAction: 2, accepted: 0, declined: 0, tentative: 0 });
         expect(created.body.data.participantPeople.map((person) => person.responseStatus)).toEqual(["needsAction", "needsAction"]);
 
-        const accepted = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("X-Calendar-Profile", String(user02._id)).send({ status: "accepted" });
+        const accepted = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("Authorization", `Bearer ${await asProfile(user02)}`).send({ status: "accepted" });
         expect(accepted.status).toBe(200);
         expect(accepted.body.data).toEqual(expect.objectContaining({ editable: false, responseStatus: "accepted", respondedAt: expect.any(String) }));
         expect(accepted.body.data.responseSummary).toEqual({ needsAction: 1, accepted: 1, declined: 0, tentative: 0 });
 
-        const tentative = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("X-Calendar-Profile", String(user02._id)).send({ status: "tentative" });
+        const tentative = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("Authorization", `Bearer ${await asProfile(user02)}`).send({ status: "tentative" });
         expect(tentative.body.data.responseStatus).toBe("tentative");
-        const declined = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("X-Calendar-Profile", String(user03._id)).send({ status: "declined" });
+        const declined = await request(app).patch(`/api/v1/events/${created.body.data._id}/response`).set("Authorization", `Bearer ${await asProfile(user03)}`).send({ status: "declined" });
         expect(declined.body.data.responseStatus).toBe("declined");
 
-        const organizerView = await request(app).get(`/api/v1/events/${created.body.data._id}`).set("X-Calendar-Profile", String(owner._id));
+        const organizerView = await request(app).get(`/api/v1/events/${created.body.data._id}`).set("Authorization", `Bearer ${await asProfile(owner)}`);
         expect(organizerView.body.data.responseStatus).toBeUndefined();
         expect(organizerView.body.data.responseSummary).toEqual({ needsAction: 0, accepted: 0, declined: 1, tentative: 1 });
         expect(organizerView.body.data.participantPeople).toEqual(expect.arrayContaining([
@@ -361,33 +412,33 @@ describe("events", () => {
             personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#7b1fa2", isProfile: true }),
         ]);
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
-        const created = await request(app).post("/api/v1/events").set("X-Calendar-Profile", String(owner._id)).send({
+        const created = await request(app).post("/api/v1/events").set("Authorization", `Bearer ${await asProfile(owner)}`).send({
             ...eventPayload(), calendarId: String(ownerCalendar._id), participantIds: [String(attendee._id)], participants: [attendee.name],
             recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], monthlyMode: "ordinalWeekday", endType: "count", count: 3, until: null, timeZone: "UTC" },
         });
         expect(created.status).toBe(201);
         const endpoint = `/api/v1/events/${created.body.data._id}/response`;
-        const list = () => request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-30T00:00:00.000Z&calendarIds=${ownerCalendar._id}`).set("X-Calendar-Profile", String(attendee._id));
+        const list = async () => request(app).get(`/api/v1/events?from=2026-08-27T00:00:00.000Z&to=2026-08-30T00:00:00.000Z&calendarIds=${ownerCalendar._id}`).set("Authorization", `Bearer ${await asProfile(attendee)}`);
         let occurrences = (await list()).body.data;
         expect(occurrences).toHaveLength(3);
         expect(occurrences.every((item) => item.recurring && item.responseStatus === "needsAction")).toBe(true);
 
-        await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "declined", scope: "this", occurrenceStartAt: occurrences[0].occurrenceStartAt });
+        await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(attendee)}`).send({ status: "declined", scope: "this", occurrenceStartAt: occurrences[0].occurrenceStartAt });
         occurrences = (await list()).body.data;
         expect(occurrences.map((item) => item.responseStatus)).toEqual(["declined", "needsAction", "needsAction"]);
 
-        await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "tentative", scope: "following", occurrenceStartAt: occurrences[1].occurrenceStartAt });
+        await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(attendee)}`).send({ status: "tentative", scope: "following", occurrenceStartAt: occurrences[1].occurrenceStartAt });
         occurrences = (await list()).body.data;
         expect(occurrences.map((item) => item.responseStatus)).toEqual(["declined", "tentative", "tentative"]);
 
-        await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted", scope: "all" });
+        await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(attendee)}`).send({ status: "accepted", scope: "all" });
         expect((await list()).body.data.map((item) => item.responseStatus)).toEqual(["accepted", "accepted", "accepted"]);
 
-        const invalid = await request(app).post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "weekly", interval: 1, daysOfWeek: [], endType: "never", timeZone: "UTC" } });
+        const invalid = await api().post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "weekly", interval: 1, daysOfWeek: [], endType: "never", timeZone: "UTC" } });
         expect(invalid.status).toBe(400);
-        expect((await request(app).post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], endType: "never", timeZone: "Mars/Olympus" } })).status).toBe(400);
-        expect((await request(app).post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], endType: "until", until: "2026-08-01T00:00:00.000Z", timeZone: "UTC" } })).body.error.code).toBe("INVALID_RECURRENCE_END");
-        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted", scope: "this", occurrenceStartAt: "2026-08-27T09:01:00.000Z" })).body.error.code).toBe("INVALID_OCCURRENCE");
+        expect((await api().post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], endType: "never", timeZone: "Mars/Olympus" } })).status).toBe(400);
+        expect((await api().post("/api/v1/events").send({ ...eventPayload(), recurrence: { frequency: "daily", interval: 1, daysOfWeek: [], endType: "until", until: "2026-08-01T00:00:00.000Z", timeZone: "UTC" } })).body.error.code).toBe("INVALID_RECURRENCE_END");
+        expect((await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(attendee)}`).send({ status: "accepted", scope: "this", occurrenceStartAt: "2026-08-27T09:01:00.000Z" })).body.error.code).toBe("INVALID_OCCURRENCE");
     });
 
     test("preserves retained responses, adds new guests as pending, and resets answers after schedule changes", async () => {
@@ -399,13 +450,13 @@ describe("events", () => {
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
         const event = await Event.create({ ...eventPayload(), calendarId: ownerCalendar._id, participantIds: [user02._id], participants: [user02.name], attendeeResponses: [{ personId: user02._id, status: "accepted", respondedAt: new Date() }] });
 
-        const guestsChanged = await request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send({ participantIds: [String(user02._id), String(user03._id)], participants: [user02.name, user03.name] });
+        const guestsChanged = await request(app).patch(`/api/v1/events/${event._id}`).set("Authorization", `Bearer ${await asProfile(owner)}`).send({ participantIds: [String(user02._id), String(user03._id)], participants: [user02.name, user03.name] });
         expect(guestsChanged.body.data.participantPeople).toEqual([
             expect.objectContaining({ name: "Jordan Smith", responseStatus: "accepted" }),
             expect.objectContaining({ name: "Taylor Johnson", responseStatus: "needsAction" }),
         ]);
 
-        const rescheduled = await request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send({ startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" });
+        const rescheduled = await request(app).patch(`/api/v1/events/${event._id}`).set("Authorization", `Bearer ${await asProfile(owner)}`).send({ startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" });
         expect(rescheduled.body.data.responseSummary).toEqual({ needsAction: 2, accepted: 0, declined: 0, tentative: 0 });
         expect(rescheduled.body.data.attendeeResponses.every((response) => response.respondedAt === null)).toBe(true);
     });
@@ -426,7 +477,7 @@ describe("events", () => {
             attendeeResponses: [{ personId: guest._id, status: "accepted", respondedAt }],
             recurrenceResponseOverrides: [{ personId: guest._id, occurrenceStartAt: new Date("2026-09-03T09:00:00.000Z"), scope: "this", status: "declined", respondedAt }],
         });
-        const patch = (body) => request(app).patch(`/api/v1/events/${event._id}`).set("X-Calendar-Profile", String(owner._id)).send(body);
+        const patch = async (body) => request(app).patch(`/api/v1/events/${event._id}`).set("Authorization", `Bearer ${await asProfile(owner)}`).send(body);
 
         const renamed = await patch({ title: "Design review v2" });
         expect(renamed.body.data.responseSummary).toEqual({ needsAction: 0, accepted: 1, declined: 0, tentative: 0 });
@@ -457,12 +508,12 @@ describe("events", () => {
         const ownerCalendar = await Calendar.create({ ownerId: owner._id, name: "Owner calendar", color: "#039be5", visible: true, isPrimary: true });
         const event = await Event.create({ ...eventPayload(), calendarId: ownerCalendar._id, participantIds: [attendee._id], participants: [attendee.name] });
         const endpoint = `/api/v1/events/${event._id}/response`;
-        expect((await request(app).patch(endpoint).send({ status: "accepted" })).body.error.code).toBe("PROFILE_REQUIRED");
-        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(owner._id)).send({ status: "accepted" })).body.error.code).toBe("NOT_EVENT_ATTENDEE");
-        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(outsider._id)).send({ status: "declined" })).status).toBe(403);
-        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "later" })).status).toBe(400);
-        expect((await request(app).patch(endpoint).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted", extra: true })).status).toBe(400);
-        expect((await request(app).patch(`/api/v1/events/not-an-id/response`).set("X-Calendar-Profile", String(attendee._id)).send({ status: "accepted" })).body.error.code).toBe("EVENT_NOT_FOUND");
+        expect((await request(app).patch(endpoint).set("Authorization", `Bearer ${await workspaceOnlyToken(owner)}`).send({ status: "accepted" })).body.error.code).toBe("PROFILE_REQUIRED");
+        expect((await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(owner)}`).send({ status: "accepted" })).body.error.code).toBe("NOT_EVENT_ATTENDEE");
+        expect((await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(outsider)}`).send({ status: "declined" })).status).toBe(403);
+        expect((await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(attendee)}`).send({ status: "later" })).status).toBe(400);
+        expect((await request(app).patch(endpoint).set("Authorization", `Bearer ${await asProfile(attendee)}`).send({ status: "accepted", extra: true })).status).toBe(400);
+        expect((await request(app).patch(`/api/v1/events/not-an-id/response`).set("Authorization", `Bearer ${await asProfile(attendee)}`).send({ status: "accepted" })).body.error.code).toBe("EVENT_NOT_FOUND");
     });
 });
 
@@ -474,7 +525,7 @@ describe("time insights", () => {
             { ...eventPayload(), title: "Follow up", type: "task", startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T11:30:00.000Z" },
             { ...eventPayload(), title: "Office", type: "workingLocation", allDay: true, startAt: "2026-08-27T00:00:00.000Z", endAt: "2026-08-28T00:00:00.000Z" },
         ]);
-        const response = await request(app).get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const response = await api().get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(response.status).toBe(200);
         expect(response.body.data).toEqual(expect.objectContaining({
             workingDayMinutes: 480,
@@ -492,11 +543,11 @@ describe("time insights", () => {
         await Event.create([
             { ...eventPayload(), title: "Out of office", type: "outOfOffice", allDay: true, startAt: "2026-08-22T00:00:00.000Z", endAt: "2026-08-23T00:00:00.000Z" },
         ]);
-        const quietDay = await request(app).get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const quietDay = await api().get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(quietDay.body.data.totalScheduledMinutes).toBe(0);
         expect(quietDay.body.data.remainingMinutes).toBe(480);
 
-        const coveredDay = await request(app).get(`/api/v1/insights/daily?from=2026-08-22T00:00:00.000Z&to=2026-08-23T00:00:00.000Z&calendarIds=${primary._id}`);
+        const coveredDay = await api().get(`/api/v1/insights/daily?from=2026-08-22T00:00:00.000Z&to=2026-08-23T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(coveredDay.body.data.categories.find((category) => category.key === "outOfOffice").minutes).toBe(480);
     });
 
@@ -514,20 +565,20 @@ describe("time insights", () => {
             { ...eventPayload(), calendarId: otherCalendar._id, title: "Theirs", startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T12:00:00.000Z" },
         ]);
 
-        const scoped = await request(app).get("/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z").set("X-Calendar-Profile", String(owner._id));
+        const scoped = await request(app).get("/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z").set("Authorization", `Bearer ${await asProfile(owner)}`);
         expect(scoped.body.data.meetingMinutes).toBe(60);
         expect(scoped.body.data.calendars.map((calendar) => calendar.name)).toEqual(["Owner calendar"]);
 
-        const forged = await request(app).get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${otherCalendar._id}`).set("X-Calendar-Profile", String(owner._id));
+        const forged = await request(app).get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${otherCalendar._id}`).set("Authorization", `Bearer ${await asProfile(owner)}`);
         expect(forged.body.data.meetingMinutes).toBe(0);
         expect(forged.body.data.calendars).toEqual([]);
     });
 
     test("rejects invalid insight ranges and calendar identifiers", async () => {
-        const range = await request(app).get(`/api/v1/insights/daily?from=2026-08-28T00:00:00.000Z&to=2026-08-27T00:00:00.000Z&calendarIds=${primary._id}`);
+        const range = await api().get(`/api/v1/insights/daily?from=2026-08-28T00:00:00.000Z&to=2026-08-27T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(range.status).toBe(400);
         expect(range.body.error.code).toBe("VALIDATION_ERROR");
-        const identifier = await request(app).get("/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=invalid");
+        const identifier = await api().get("/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=invalid");
         expect(identifier.status).toBe(400);
     });
 
@@ -537,7 +588,7 @@ describe("time insights", () => {
             { ...eventPayload(), title: "Appointment", type: "appointmentSchedule", startAt: "2026-08-27T12:00:00.000Z", endAt: "2026-08-27T12:45:00.000Z" },
             { ...eventPayload(), title: "Away", type: "outOfOffice", allDay: true, startAt: "2026-08-27T00:00:00.000Z", endAt: "2026-08-28T00:00:00.000Z" },
         ]);
-        const response = await request(app).get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
+        const response = await api().get(`/api/v1/insights/daily?from=2026-08-27T00:00:00.000Z&to=2026-08-28T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(response.body.data.meetingMinutes).toBe(75);
         expect(response.body.data.totalScheduledMinutes).toBe(555);
         expect(response.body.data.remainingMinutes).toBe(0);
@@ -545,7 +596,7 @@ describe("time insights", () => {
     });
 
     test("returns a stable zero-data insight snapshot", async () => {
-        const response = await request(app).get(`/api/v1/insights/daily?from=2026-09-01T00:00:00.000Z&to=2026-09-02T00:00:00.000Z&calendarIds=${primary._id}`);
+        const response = await api().get(`/api/v1/insights/daily?from=2026-09-01T00:00:00.000Z&to=2026-09-02T00:00:00.000Z&calendarIds=${primary._id}`);
         expect(response.status).toBe(200);
         expect(response.body.data).toEqual(expect.objectContaining({ totalScheduledMinutes: 0, meetingMinutes: 0, meetingCount: 0, remainingMinutes: 480, calendars: [] }));
         expect(response.body.data.categories.every((category) => category.minutes === 0)).toBe(true);
@@ -558,11 +609,11 @@ describe("people and availability", () => {
             personPayload(),
             personPayload({ name: "Jordan Smith", email: "jordan.smith+desk@calendar.com", avatarColor: "#1a73e8" }),
         ]);
-        const name = await request(app).get("/api/v1/people?q=Taylor Johnson");
+        const name = await api().get("/api/v1/people?q=Taylor Johnson");
         expect(name.status).toBe(200);
         expect(name.body.data.map((person) => person.name)).toEqual(["Taylor Johnson"]);
         expect(name.body.data[0].busyBlocks).toBeUndefined();
-        const literal = await request(app).get("/api/v1/people?q=%2Bdesk");
+        const literal = await api().get("/api/v1/people?q=%2Bdesk");
         expect(literal.body.data.map((person) => person.name)).toEqual(["Jordan Smith"]);
     });
 
@@ -571,10 +622,10 @@ describe("people and availability", () => {
             personPayload({ name: "Casey Bennett", email: "casey.bennett@calendar.com" }),
             personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8" }),
         ]);
-        const response = await request(app).get("/api/v1/people?limit=1");
+        const response = await api().get("/api/v1/people?limit=1");
         expect(response.status).toBe(200);
         expect(response.body.data.map((person) => person.name)).toEqual(["Casey Bennett"]);
-        expect((await request(app).get("/api/v1/people?limit=0")).status).toBe(400);
+        expect((await api().get("/api/v1/people?limit=0")).status).toBe(400);
     });
 
     test("suggests only conflict-free shared-working-hour slots", async () => {
@@ -583,7 +634,7 @@ describe("people and availability", () => {
             personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8", workingHours: { startMinute: 600, endMinute: 960 }, busyBlocks: [{ title: "Stand-up", startAt: "2099-08-27T11:00:00.000Z", endAt: "2099-08-27T11:30:00.000Z" }] }),
         ]);
         await Event.create({ ...eventPayload(), title: "Owner conflict", startAt: "2099-08-27T12:00:00.000Z", endAt: "2099-08-27T13:00:00.000Z" });
-        const response = await request(app).post("/api/v1/availability/suggestions").send({
+        const response = await api().post("/api/v1/availability/suggestions").send({
             participantIds: [String(user03._id), String(user02._id)],
             from: "2099-08-27",
             timeZone: "UTC",
@@ -610,7 +661,7 @@ describe("people and availability", () => {
             timeZone: "America/New_York",
             workingHours: { startMinute: 540, endMinute: 1020 },
         }));
-        const response = await request(app).post("/api/v1/availability/suggestions").send({
+        const response = await api().post("/api/v1/availability/suggestions").send({
             participantIds: [String(person._id)],
             from: "2099-03-09",
             timeZone: "America/New_York",
@@ -628,22 +679,22 @@ describe("people and availability", () => {
     test("validates suggestion participants, duration, range, duplicates, and missing people", async () => {
         const person = await Person.create(personPayload());
         const endpoint = "/api/v1/availability/suggestions";
-        expect((await request(app).post(endpoint).send({ participantIds: [], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 })).status).toBe(400);
-        expect((await request(app).post(endpoint).send({ participantIds: [String(person._id)], from: "bad-date", timeZone: "UTC", durationMinutes: 30 })).status).toBe(400);
-        expect((await request(app).post(endpoint).send({ participantIds: [String(person._id)], from: "2099-08-27", timeZone: "Mars/Olympus", durationMinutes: 30 })).status).toBe(400);
-        expect((await request(app).post(endpoint).send({ participantIds: [String(person._id)], from: "2099-08-27", timeZone: "UTC", durationMinutes: 22 })).status).toBe(400);
-        expect((await request(app).post(endpoint).send({ participantIds: [String(person._id), String(person._id)], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 })).status).toBe(400);
-        const malformed = await request(app).post(endpoint).send({ participantIds: ["bad-id"], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 });
+        expect((await api().post(endpoint).send({ participantIds: [], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 })).status).toBe(400);
+        expect((await api().post(endpoint).send({ participantIds: [String(person._id)], from: "bad-date", timeZone: "UTC", durationMinutes: 30 })).status).toBe(400);
+        expect((await api().post(endpoint).send({ participantIds: [String(person._id)], from: "2099-08-27", timeZone: "Mars/Olympus", durationMinutes: 30 })).status).toBe(400);
+        expect((await api().post(endpoint).send({ participantIds: [String(person._id)], from: "2099-08-27", timeZone: "UTC", durationMinutes: 22 })).status).toBe(400);
+        expect((await api().post(endpoint).send({ participantIds: [String(person._id), String(person._id)], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 })).status).toBe(400);
+        const malformed = await api().post(endpoint).send({ participantIds: ["bad-id"], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 });
         expect(malformed.status).toBe(400);
         expect(malformed.body.error.code).toBe("INVALID_PERSON_ID");
-        const missing = await request(app).post(endpoint).send({ participantIds: [String(new mongoose.Types.ObjectId())], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 });
+        const missing = await api().post(endpoint).send({ participantIds: [String(new mongoose.Types.ObjectId())], from: "2099-08-27", timeZone: "UTC", durationMinutes: 30 });
         expect(missing.status).toBe(404);
         expect(missing.body.error.code).toBe("PEOPLE_NOT_FOUND");
     });
 
     test("returns a stable empty result when every valid slot is busy", async () => {
         const person = await Person.create(personPayload({ busyBlocks: [{ title: "All day workshop", startAt: "2099-08-27T00:00:00.000Z", endAt: "2099-08-28T00:00:00.000Z" }] }));
-        const response = await request(app).post("/api/v1/availability/suggestions").send({ participantIds: [String(person._id)], from: "2099-08-27", timeZone: "UTC", days: 1, durationMinutes: 30 });
+        const response = await api().post("/api/v1/availability/suggestions").send({ participantIds: [String(person._id)], from: "2099-08-27", timeZone: "UTC", days: 1, durationMinutes: 30 });
         expect(response.status).toBe(200);
         expect(response.body.data.suggestions).toEqual([]);
     });
@@ -653,7 +704,7 @@ describe("people and availability", () => {
             personPayload({ busyBlocks: [{ title: "Design review", startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" }] }),
             personPayload({ name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#1a73e8", busyBlocks: [{ title: "Later meeting", startAt: "2026-08-27T12:00:00.000Z", endAt: "2026-08-27T13:00:00.000Z" }] }),
         ]);
-        const response = await request(app).post("/api/v1/availability/conflicts").send({
+        const response = await api().post("/api/v1/availability/conflicts").send({
             participantIds: [String(user03._id), String(user02._id)],
             startAt: "2026-08-27T10:30:00.000Z",
             endAt: "2026-08-27T11:30:00.000Z",
@@ -668,7 +719,7 @@ describe("people and availability", () => {
 
     test("reports free-but-outside-hours guests separately in their own time zones", async () => {
         const person = await Person.create(personPayload({ timeZone: "America/New_York", workingHours: { startMinute: 540, endMinute: 1020 } }));
-        const outside = await request(app).post("/api/v1/availability/conflicts").send({
+        const outside = await api().post("/api/v1/availability/conflicts").send({
             participantIds: [String(person._id)],
             startAt: "2026-08-27T12:30:00.000Z",
             endAt: "2026-08-27T13:30:00.000Z",
@@ -680,7 +731,7 @@ describe("people and availability", () => {
             localStartMinute: 510,
             workingDay: true,
         })]);
-        const inside = await request(app).post("/api/v1/availability/conflicts").send({
+        const inside = await api().post("/api/v1/availability/conflicts").send({
             participantIds: [String(person._id)],
             startAt: "2026-08-27T13:00:00.000Z",
             endAt: "2026-08-27T14:00:00.000Z",
@@ -691,7 +742,7 @@ describe("people and availability", () => {
 
     test("treats meetings created in Calendar as future guest conflicts", async () => {
         const person = await Person.create(personPayload());
-        const created = await request(app).post("/api/v1/events").send({
+        const created = await api().post("/api/v1/events").send({
             ...eventPayload(),
             title: "Guest planning",
             participants: [person.name],
@@ -699,12 +750,12 @@ describe("people and availability", () => {
         });
         expect(created.status).toBe(201);
         expect(created.body.data.participantIds).toEqual([String(person._id)]);
-        const response = await request(app).post("/api/v1/availability/conflicts").send({ participantIds: [String(person._id)], startAt: "2026-08-27T09:30:00.000Z", endAt: "2026-08-27T09:45:00.000Z" });
+        const response = await api().post("/api/v1/availability/conflicts").send({ participantIds: [String(person._id)], startAt: "2026-08-27T09:30:00.000Z", endAt: "2026-08-27T09:45:00.000Z" });
         expect(response.body.data.conflicts[0]).toEqual(expect.objectContaining({
             person: expect.objectContaining({ name: person.name }),
             busy: [expect.objectContaining({ _id: created.body.data._id, calendarId: String(primary._id), title: "Guest planning", description: "Review the release plan.", location: "Room Cedar" })],
         }));
-        const unknown = await request(app).post("/api/v1/events").send({ ...eventPayload(), participantIds: [String(new mongoose.Types.ObjectId())] });
+        const unknown = await api().post("/api/v1/events").send({ ...eventPayload(), participantIds: [String(new mongoose.Types.ObjectId())] });
         expect(unknown.status).toBe(404);
         expect(unknown.body.error.code).toBe("PEOPLE_NOT_FOUND");
     });
@@ -724,13 +775,13 @@ describe("people and availability", () => {
                 { personId: user03._id, status: "accepted", respondedAt: new Date() },
             ],
         });
-        const response = await request(app).post("/api/v1/availability/conflicts").send({ participantIds: [String(user02._id), String(user03._id)], startAt: "2026-08-27T09:15:00.000Z", endAt: "2026-08-27T09:45:00.000Z" });
+        const response = await api().post("/api/v1/availability/conflicts").send({ participantIds: [String(user02._id), String(user03._id)], startAt: "2026-08-27T09:15:00.000Z", endAt: "2026-08-27T09:45:00.000Z" });
         expect(response.body.data.conflicts.map((conflict) => conflict.person.name)).toEqual(["Taylor Johnson"]);
     });
 
     test("keeps directory identities aligned with legacy name-only guests", async () => {
         const person = await Person.create(personPayload({ name: "Taylor Johnson", email: "taylor.johnson@calendar.com" }));
-        const created = await request(app).post("/api/v1/events").send({
+        const created = await api().post("/api/v1/events").send({
             ...eventPayload(),
             participants: ["Saved User", "Taylor Johnson"],
             participantIds: [String(person._id)],
@@ -741,7 +792,7 @@ describe("people and availability", () => {
             expect.objectContaining({ _id: String(person._id), name: "Taylor Johnson", email: "taylor.johnson@calendar.com" }),
             expect.objectContaining({ name: "Saved User", email: "" }),
         ]);
-        const reopened = await request(app).get(`/api/v1/events/${created.body.data._id}`);
+        const reopened = await api().get(`/api/v1/events/${created.body.data._id}`);
         expect(reopened.body.data.participantPeople[0]).toEqual(expect.objectContaining({ _id: String(person._id), name: "Taylor Johnson" }));
         expect(reopened.body.data.participantPeople[1].name).toBe("Saved User");
     });
@@ -749,29 +800,29 @@ describe("people and availability", () => {
     test("treats touching intervals as available and validates conflict requests", async () => {
         const person = await Person.create(personPayload({ busyBlocks: [{ title: "Review", startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" }] }));
         const endpoint = "/api/v1/availability/conflicts";
-        const available = await request(app).post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T11:30:00.000Z" });
+        const available = await api().post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T11:30:00.000Z" });
         expect(available.body.data).toEqual(expect.objectContaining({ available: true, conflicts: [] }));
-        expect((await request(app).post(endpoint).send({ participantIds: [], startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })).status).toBe(400);
-        expect((await request(app).post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T10:00:00.000Z" })).status).toBe(400);
-        expect((await request(app).post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T11:30:00.000Z", timeZone: "Mars/Olympus" })).status).toBe(400);
-        expect((await request(app).post(endpoint).send({ participantIds: ["bad-id"], startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })).body.error.code).toBe("INVALID_PERSON_ID");
+        expect((await api().post(endpoint).send({ participantIds: [], startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })).status).toBe(400);
+        expect((await api().post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T10:00:00.000Z" })).status).toBe(400);
+        expect((await api().post(endpoint).send({ participantIds: [String(person._id)], startAt: "2026-08-27T11:00:00.000Z", endAt: "2026-08-27T11:30:00.000Z", timeZone: "Mars/Olympus" })).status).toBe(400);
+        expect((await api().post(endpoint).send({ participantIds: ["bad-id"], startAt: "2026-08-27T10:00:00.000Z", endAt: "2026-08-27T11:00:00.000Z" })).body.error.code).toBe("INVALID_PERSON_ID");
     });
 
     test("ignores free all-day metadata but blocks all-day out-of-office events", async () => {
         const person = await Person.create(personPayload());
         await Event.create({ ...eventPayload(), title: "Birthday", allDay: true, startAt: "2099-08-27T00:00:00.000Z", endAt: "2099-08-28T00:00:00.000Z" });
         const criteria = { participantIds: [String(person._id)], from: "2099-08-27", timeZone: "UTC", days: 1, durationMinutes: 30 };
-        const withMetadata = await request(app).post("/api/v1/availability/suggestions").send(criteria);
+        const withMetadata = await api().post("/api/v1/availability/suggestions").send(criteria);
         expect(withMetadata.body.data.suggestions.length).toBeGreaterThan(0);
         await Event.create({ ...eventPayload(), title: "Out of office", type: "outOfOffice", allDay: true, startAt: "2099-08-27T00:00:00.000Z", endAt: "2099-08-28T00:00:00.000Z" });
-        const outOfOffice = await request(app).post("/api/v1/availability/suggestions").send(criteria);
+        const outOfOffice = await api().post("/api/v1/availability/suggestions").send(criteria);
         expect(outOfOffice.body.data.suggestions).toEqual([]);
     });
 });
 
 describe("errors", () => {
     test("uses a stable not-found envelope", async () => {
-        const response = await request(app).get("/api/v1/unknown");
+        const response = await api().get("/api/v1/unknown");
         expect(response.status).toBe(404);
         expect(response.body.error.code).toBe("NOT_FOUND");
     });

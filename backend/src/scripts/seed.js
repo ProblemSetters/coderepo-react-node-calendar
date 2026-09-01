@@ -3,13 +3,15 @@ import { Calendar } from "../features/calendars/calendar.model.js";
 import { Event } from "../features/events/event.model.js";
 import { Person } from "../features/people/person.model.js";
 import { WorkspaceAccount } from "../features/auth/workspace-account.model.js";
+import dotenv from "dotenv";
 import { connectDatabase, disconnectDatabase } from "../shared/config/database.js";
+import { initConfig } from "../shared/config/index.js";
 import { demoColorFor } from "../shared/constants/demo-colors.js";
 import { addCalendarDays, dayOfWeek, localDateKey, partsAt, zonedDateTime } from "../shared/utils/time-zone.js";
 
 const DEMO_TIME_ZONE = "UTC";
-const WORKSPACE_EMAIL = process.env.DEMO_ACCOUNT_EMAIL || "workspace@calendar.com";
-const WORKSPACE_PASSWORD = process.env.DEMO_ACCOUNT_PASSWORD || "password123";
+const WORKSPACE_EMAIL = "workspace@calendar.com";
+const WORKSPACE_PASSWORD = "password123";
 const PASSWORD_ROUNDS = 12;
 const SPREAD_FIRST_DAY = -45;
 const SPREAD_LAST_DAY = 60;
@@ -19,7 +21,8 @@ const dayKey = (dayOffset) => addCalendarDays(todayKey, dayOffset);
 const date = (dayOffset, hour, minute = 0) => zonedDateTime(dayKey(dayOffset), hour * 60 + minute, DEMO_TIME_ZONE);
 const isWeekend = (dayOffset) => [0, 6].includes(dayOfWeek(dayKey(dayOffset)));
 
-await connectDatabase();
+dotenv.config({ quiet: true });
+await connectDatabase(initConfig().mongodbUri);
 await Promise.all([Event.deleteMany({}), Calendar.deleteMany({}), Person.deleteMany({}), WorkspaceAccount.deleteMany({})]);
 await Promise.all([Calendar.syncIndexes(), Person.syncIndexes(), Event.syncIndexes(), WorkspaceAccount.syncIndexes()]);
 

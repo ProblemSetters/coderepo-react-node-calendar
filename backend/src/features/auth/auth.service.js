@@ -2,12 +2,12 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { AppError } from "../../shared/errors/app-error.js";
-import { config } from "../../shared/config/index.js";
+import { getConfig } from "../../shared/config/index.js";
 import { personService } from "../people/person.service.js";
 import { authRepository } from "./auth.repository.js";
 
 const publicAccount = (account) => ({ _id: String(account._id), name: account.name, email: account.email });
-const sign = (account, profileId) => jwt.sign({ sub: String(account._id), type: profileId ? "profile" : "workspace", ...(profileId ? { profileId: String(profileId) } : {}) }, config.jwtSecret, { expiresIn: config.jwtExpiresIn, issuer: "calendar-api", audience: "calendar-assessment" });
+const sign = (account, profileId) => jwt.sign({ sub: String(account._id), type: profileId ? "profile" : "workspace", ...(profileId ? { profileId: String(profileId) } : {}) }, getConfig().jwtSecret, { expiresIn: getConfig().jwtExpiresIn, issuer: "calendar-api", audience: "calendar-assessment" });
 
 export const authService = {
     async login(email, password) {
@@ -18,7 +18,7 @@ export const authService = {
     },
     async authenticate(token) {
         let payload;
-        try { payload = jwt.verify(token, config.jwtSecret, { issuer: "calendar-api", audience: "calendar-assessment" }); }
+        try { payload = jwt.verify(token, getConfig().jwtSecret, { issuer: "calendar-api", audience: "calendar-assessment" }); }
         catch { throw new AppError(401, "INVALID_TOKEN", "Your Calendar session is invalid or has expired."); }
         if (!mongoose.isValidObjectId(payload.sub) || !["workspace", "profile"].includes(payload.type)) throw new AppError(401, "INVALID_TOKEN", "Your Calendar session is invalid or has expired.");
         const account = await authRepository.findActiveById(payload.sub);

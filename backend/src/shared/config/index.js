@@ -1,17 +1,41 @@
-import dotenv from "dotenv";
+function getRequiredEnv(key) {
+	const value = process.env[key];
+	if (!value) throw new Error(`Missing required environment variable: ${key}`);
+	return value;
+}
 
-dotenv.config({ quiet: true });
+function getOptionalEnv(key, defaultValue) {
+	return process.env[key] || defaultValue;
+}
 
-const production = process.env.NODE_ENV === "production";
-if (production && !process.env.JWT_SECRET) throw new Error("JWT_SECRET is required in production.");
+function appendTestSuffix(uri) {
+	const questionMarkIndex = uri.indexOf("?");
+	if (questionMarkIndex === -1) return `${uri}_test`;
+	return `${uri.substring(0, questionMarkIndex)}_test${uri.substring(questionMarkIndex)}`;
+}
 
-export const config = {
-    clientOrigins: [...new Set([
-        ...(process.env.CLIENT_ORIGIN || "http://localhost:3000").split(",").map((origin) => origin.trim()).filter(Boolean),
-        ...(process.env.NODE_ENV === "production" ? [] : ["http://localhost:3000"]),
-    ])],
-    mongoUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/calendar_db",
-    port: Number(process.env.PORT || 8000),
-    jwtSecret: process.env.JWT_SECRET || "calendar-local-development-secret",
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || "8h",
-};
+let configInstance = null;
+
+export function loadConfig(isTest = false) {
+	const mongodbUri = getRequiredEnv("MONGODB_URI");
+	configInstance = {
+		mongodbUri: isTest ? appendTestSuffix(mongodbUri) : mongodbUri,
+		jwtSecret: getRequiredEnv("JWT_SECRET"),
+		jwtExpiresIn: getOptionalEnv("JWT_EXPIRES_IN", "24h"),
+		port: parseInt(getOptionalEnv("PORT", "8000"), 10),
+		nodeEnv: isTest ? "test" : getOptionalEnv("NODE_ENV", "development"),
+	};
+	return configInstance;
+}
+
+export function getConfig() {
+	if (!configInstance) throw new Error("Configuration not loaded. Call initConfig() first after dotenv.config()");
+	return configInstance;
+}
+
+export function initConfig() {
+	configInstance = loadConfig();
+	return configInstance;
+}
+
+export { getRequiredEnv, getOptionalEnv };

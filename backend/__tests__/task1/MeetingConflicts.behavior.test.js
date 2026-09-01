@@ -1,12 +1,27 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.env") });
+
+import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
 import { createApp } from "../../src/app.js";
 import { Calendar } from "../../src/features/calendars/calendar.model.js";
 import { Event } from "../../src/features/events/event.model.js";
 import { Person } from "../../src/features/people/person.model.js";
+import { WorkspaceAccount } from "../../src/features/auth/workspace-account.model.js";
+import { loadConfig } from "../../src/shared/config/index.js";
 
-let database;
+const config = loadConfig(true);
+const app = createApp();
+
+const WORKSPACE_EMAIL = "workspace@calendar.com";
+const WORKSPACE_PASSWORD = "password123";
+const MONDAY = "2030-01-07";
+const at = (date, time) => `${date}T${time}:00.000Z`;
+
 let organizer;
 let guestOne;
 let guestTwo;
@@ -14,20 +29,19 @@ let guestThree;
 let bystander;
 let organizerCalendar;
 let guestCalendar;
-const app = createApp();
+let organizerToken;
 
-const MONDAY = "2030-01-07";
-const at = (date, time) => `${date}T${time}:00.000Z`;
-
-const checkConflicts = (people, startAt, endAt) => request(app).post("/api/v1/availability/conflicts").send({
-    participantIds: people.map((person) => String(person._id)),
-    startAt,
-    endAt,
-    timeZone: "UTC",
-});
+const checkConflicts = (people, startAt, endAt) => request(app).post("/api/v1/availability/conflicts")
+    .set("Authorization", `Bearer ${organizerToken}`)
+    .send({
+        participantIds: people.map((person) => String(person._id)),
+        startAt,
+        endAt,
+        timeZone: "UTC",
+    });
 
 const suggestTimes = (profile, people) => request(app).post("/api/v1/availability/suggestions")
-    .set("X-Calendar-Profile", String(profile._id))
+    .set("Authorization", `Bearer ${organizerToken}`)
     .send({ participantIds: people.map((person) => String(person._id)), from: MONDAY, timeZone: "UTC", days: 1, durationMinutes: 30 });
 
 const guestEvent = (values) => ({
@@ -41,28 +55,39 @@ const guestEvent = (values) => ({
 const busyIds = (body) => body.data.conflicts.map((conflict) => String(conflict.person._id));
 
 beforeAll(async () => {
-    database = await MongoMemoryServer.create();
-    await mongoose.connect(database.getUri("calendar_db_test"));
-}, 120000);
+    await mongoose.connect(config.mongodbUri);
+});
 
 beforeEach(async () => {
-    await Promise.all([Calendar.deleteMany({}), Event.deleteMany({}), Person.deleteMany({})]);
+    await Promise.all([Calendar.deleteMany({}), Event.deleteMany({}), Person.deleteMany({}), WorkspaceAccount.deleteMany({})]);
     [organizer, guestOne, guestTwo, guestThree, bystander] = await Person.create([
-        { name: "River", email: "river@hackerrank.com", avatarColor: "#039be5", isProfile: true, sortOrder: 1 },
-        { name: "Sky", email: "sky@hackerrank.com", avatarColor: "#e37400", isProfile: true, sortOrder: 2 },
-        { name: "Sage", email: "sage@hackerrank.com", avatarColor: "#d93025", isProfile: true, sortOrder: 3 },
-        { name: "Nova", email: "nova@hackerrank.com", avatarColor: "#7e57c2", isProfile: true, sortOrder: 4 },
-        { name: "Ember", email: "ember@hackerrank.com", avatarColor: "#0f9d58", isProfile: true, sortOrder: 5 },
+        { name: "Alex Morgan", email: "alex.morgan@calendar.com", avatarColor: "#039be5", isProfile: true, sortOrder: 1 },
+        { name: "Jordan Smith", email: "jordan.smith@calendar.com", avatarColor: "#e37400", isProfile: true, sortOrder: 2 },
+        { name: "Taylor Johnson", email: "taylor.johnson@calendar.com", avatarColor: "#d93025", isProfile: true, sortOrder: 3 },
+        { name: "Riley Parker", email: "riley.parker@calendar.com", avatarColor: "#7e57c2", isProfile: true, sortOrder: 4 },
+        { name: "Casey Bennett", email: "casey.bennett@calendar.com", avatarColor: "#0f9d58", isProfile: true, sortOrder: 5 },
     ]);
     [organizerCalendar, guestCalendar] = await Calendar.create([
         { ownerId: organizer._id, name: "My calendar", color: "#039be5", visible: true, isPrimary: true },
         { ownerId: guestOne._id, name: "My calendar", color: "#e37400", visible: true, isPrimary: true },
     ]);
+    await WorkspaceAccount.create({
+        name: "Shared workspace",
+        email: WORKSPACE_EMAIL,
+        passwordHash: await bcrypt.hash(WORKSPACE_PASSWORD, 4),
+        allowedProfileIds: [organizer._id, guestOne._id, guestTwo._id, guestThree._id, bystander._id],
+    });
+    const login = await request(app).post("/api/v1/auth/login").send({ email: WORKSPACE_EMAIL, password: WORKSPACE_PASSWORD });
+    const switched = await request(app).post("/api/v1/auth/switch-profile")
+        .set("Authorization", `Bearer ${login.body.data.token}`)
+        .send({ profileId: String(organizer._id) });
+    organizerToken = switched.body.data.token;
 });
 
 afterAll(async () => {
+    const collections = mongoose.connection.collections;
+    for (const key of Object.keys(collections)) await collections[key].deleteMany({});
     await mongoose.disconnect();
-    if (database) await database.stop();
 });
 
 describe("meeting conflicts", () => {
