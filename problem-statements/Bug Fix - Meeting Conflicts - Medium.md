@@ -24,9 +24,9 @@ Your task is to fix the availability flow on the backend.
 
 ## Steps to Reproduce
 
-- Sign in with the workspace credentials, then choose the **Alex Morgan** profile:
+- Sign in as **Alex Morgan**. Every demo user signs in with their own address and the same password.
   ```
-  Email: workspace@calendar.com
+  Email: alex.morgan@calendar.com
   Password: password123
   ```
 - Find the **Team roadmap** event on the calendar. Its guest list shows one guest accepted and the other answered "Maybe", so both are busy for that hour. Note the day and time, then close the event.

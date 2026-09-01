@@ -118,17 +118,17 @@ describe("workspace authentication", () => {
             personPayload({ name: "Alex Morgan", email: "alex.morgan@calendar.com", isProfile: true }),
             personPayload({ name: "Outside", email: "outside@calendar.com", isProfile: true }),
         ]);
-        const account = await WorkspaceAccount.create({ name: "Shared workspace", email: "workspace@calendar.com", passwordHash: await bcrypt.hash("password123", 4), allowedProfileIds: [river._id] });
+        const account = await WorkspaceAccount.create({ name: "Alex Morgan", email: "signin@calendar.com", passwordHash: await bcrypt.hash("password123", 4), allowedProfileIds: [river._id] });
 
         expect((await request(app).get("/api/v1/auth/session")).body.error.code).toBe("AUTH_REQUIRED");
-        expect((await request(app).post("/api/v1/auth/login").send({ email: "workspace@calendar.com", password: "wrong" })).body.error.code).toBe("INVALID_CREDENTIALS");
-        const login = await request(app).post("/api/v1/auth/login").send({ email: "WORKSPACE@CALENDAR.COM", password: "password123" });
+        expect((await request(app).post("/api/v1/auth/login").send({ email: "signin@calendar.com", password: "wrong" })).body.error.code).toBe("INVALID_CREDENTIALS");
+        const login = await request(app).post("/api/v1/auth/login").send({ email: "SIGNIN@CALENDAR.COM", password: "password123" });
         expect(login.status).toBe(200);
-        expect(login.body.data.account).toEqual(expect.objectContaining({ name: "Shared workspace", email: "workspace@calendar.com" }));
+        expect(login.body.data.account).toEqual(expect.objectContaining({ name: "Alex Morgan", email: "signin@calendar.com" }));
         expect(JSON.stringify(login.body)).not.toContain("passwordHash");
         const workspaceToken = login.body.data.token;
         const auth = { Authorization: `Bearer ${workspaceToken}` };
-        expect((await request(app).get("/api/v1/auth/session").set(auth)).body.data.account.email).toBe("workspace@calendar.com");
+        expect((await request(app).get("/api/v1/auth/session").set(auth)).body.data.account.email).toBe("signin@calendar.com");
         expect((await request(app).get("/api/v1/profiles").set(auth)).body.data.map((profile) => profile.name)).toEqual(["Alex Morgan"]);
         expect((await request(app).get("/api/v1/calendars").set(auth)).body.error.code).toBe("PROFILE_REQUIRED");
         expect((await request(app).post("/api/v1/auth/switch-profile").set(auth).send({ profileId: String(outsider._id) })).body.error.code).toBe("PROFILE_FORBIDDEN");

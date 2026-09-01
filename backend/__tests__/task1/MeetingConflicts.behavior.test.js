@@ -17,8 +17,8 @@ import { loadConfig } from "../../src/shared/config/index.js";
 const config = loadConfig(true);
 const app = createApp();
 
-const WORKSPACE_EMAIL = "workspace@calendar.com";
-const WORKSPACE_PASSWORD = "password123";
+const ORGANIZER_EMAIL = "alex.morgan@calendar.com";
+const DEMO_PASSWORD = "password123";
 const MONDAY = "2030-01-07";
 const at = (date, time) => `${date}T${time}:00.000Z`;
 
@@ -72,12 +72,12 @@ beforeEach(async () => {
         { ownerId: guestOne._id, name: "My calendar", color: "#e37400", visible: true, isPrimary: true },
     ]);
     await WorkspaceAccount.create({
-        name: "Shared workspace",
-        email: WORKSPACE_EMAIL,
-        passwordHash: await bcrypt.hash(WORKSPACE_PASSWORD, 4),
+        name: organizer.name,
+        email: ORGANIZER_EMAIL,
+        passwordHash: await bcrypt.hash(DEMO_PASSWORD, 4),
         allowedProfileIds: [organizer._id, guestOne._id, guestTwo._id, guestThree._id, bystander._id],
     });
-    const login = await request(app).post("/api/v1/auth/login").send({ email: WORKSPACE_EMAIL, password: WORKSPACE_PASSWORD });
+    const login = await request(app).post("/api/v1/auth/login").send({ email: ORGANIZER_EMAIL, password: DEMO_PASSWORD });
     const switched = await request(app).post("/api/v1/auth/switch-profile")
         .set("Authorization", `Bearer ${login.body.data.token}`)
         .send({ profileId: String(organizer._id) });

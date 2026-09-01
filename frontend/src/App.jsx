@@ -257,6 +257,8 @@ export default function App() {
             catch (profileRequestError) { setProfileError(profileRequestError.message); }
             setProfiles(discoveredProfiles);
             setAccount(result.account);
+            const own = discoveredProfiles.find((profile) => profile.email === result.account.email);
+            if (own) await selectProfile(own);
         }
         catch (error) { setAuthError(error.message); }
         finally { setAuthLoading(false); }

@@ -15,8 +15,7 @@ import { addCalendarDays, dayOfWeek, localDateKey, partsAt, zonedDateTime } from
 const config = loadConfig(false);
 
 const DEMO_TIME_ZONE = "UTC";
-const WORKSPACE_EMAIL = "workspace@calendar.com";
-const WORKSPACE_PASSWORD = "password123";
+const DEMO_PASSWORD = "password123";
 const PASSWORD_ROUNDS = 12;
 const SPREAD_FIRST_DAY = -45;
 const SPREAD_LAST_DAY = 60;
@@ -67,15 +66,18 @@ async function seedProfiles() {
     return profiles;
 }
 
-async function seedWorkspaceAccount(profiles) {
-    console.log("\nSeeding the workspace account...");
-    await WorkspaceAccount.create({
-        name: "Shared workspace",
-        email: WORKSPACE_EMAIL,
-        passwordHash: await bcrypt.hash(WORKSPACE_PASSWORD, PASSWORD_ROUNDS),
-        allowedProfileIds: profiles.map((profile) => profile._id),
-    });
-    console.log(`  Created 1 account allowing ${profiles.length} profiles`);
+async function seedAccounts(profiles) {
+    console.log("\nSeeding sign-in accounts...");
+    const passwordHash = await bcrypt.hash(DEMO_PASSWORD, PASSWORD_ROUNDS);
+    const allowedProfileIds = profiles.map((profile) => profile._id);
+    const accounts = await WorkspaceAccount.create(profiles.map((profile) => ({
+        name: profile.name,
+        email: profile.email,
+        passwordHash,
+        allowedProfileIds,
+    })));
+    console.log(`  Created ${accounts.length} accounts, each able to open any of the ${profiles.length} profiles`);
+    return accounts;
 }
 
 async function seedCalendars(profiles) {
@@ -164,16 +166,18 @@ function buildEventRows(profiles, calendarsByKey) {
     });
 
     const milestoneRows = [
-    event(alex, { calendar: "birthdays", title: "Jordan’s birthday", description: "Birthday reminder.", startAt: date(3, 0), endAt: date(4, 0), allDay: true }),
-    event(alex, { title: "Out of office", type: "outOfOffice", description: "Unavailable for meetings.", startAt: date(21, 0), endAt: date(23, 0), allDay: true }),
-    event(jordan, { title: "Out of office", type: "outOfOffice", description: "Unavailable for the day.", startAt: date(10, 0), endAt: date(11, 0), allDay: true }),
-    event(taylor, { title: "Out of office", type: "outOfOffice", description: "Unavailable after lunch.", startAt: date(4, 13), endAt: date(4, 18) }),
-    event(riley, { title: "Out of office", type: "outOfOffice", startAt: date(-12, 0), endAt: date(-10, 0), allDay: true }),
-    event(alex, { title: "Office hours", type: "appointmentSchedule", description: "Open slots for project questions.", location: "Video call", startAt: date(6, 15), endAt: date(6, 17) }),
-    event(jordan, { title: "Mentoring slots", type: "appointmentSchedule", description: "Book a 30-minute mentoring conversation.", startAt: date(12, 14), endAt: date(12, 16) }),
-    event(taylor, { title: "Portfolio review slots", type: "appointmentSchedule", startAt: date(18, 14), endAt: date(18, 16) }),
-    event(riley, { title: "Technical office hours", type: "appointmentSchedule", startAt: date(27, 15), endAt: date(27, 17) }),
-    event(casey, { title: "Communications office hours", type: "appointmentSchedule", startAt: date(-15, 11), endAt: date(-15, 13) }),
+        event(alex, { calendar: "birthdays", title: "Jordan’s birthday", description: "Birthday reminder.", startAt: date(3, 0), endAt: date(4, 0), allDay: true }),
+        event(alex, { title: "Out of office", type: "outOfOffice", description: "Unavailable for meetings.", startAt: date(21, 0), endAt: date(23, 0), allDay: true }),
+        event(jordan, { title: "Out of office", type: "outOfOffice", description: "Unavailable for the day.", startAt: date(10, 0), endAt: date(11, 0), allDay: true }),
+        event(taylor, { title: "Out of office", type: "outOfOffice", description: "Unavailable all day.", startAt: date(24, 0), endAt: date(25, 0), allDay: true }),
+        event(riley, { title: "Out of office", type: "outOfOffice", description: "Unavailable for the day.", startAt: date(31, 0), endAt: date(32, 0), allDay: true }),
+        event(casey, { title: "Out of office", type: "outOfOffice", description: "Unavailable for meetings.", startAt: date(16, 0), endAt: date(17, 0), allDay: true }),
+        event(taylor, { title: "Out of office", type: "outOfOffice", description: "Unavailable after lunch.", startAt: date(4, 13), endAt: date(4, 18) }),
+        event(alex, { title: "Office hours", type: "appointmentSchedule", description: "Open slots for project questions.", location: "Video call", startAt: date(6, 15), endAt: date(6, 17) }),
+        event(jordan, { title: "Mentoring slots", type: "appointmentSchedule", description: "Book a 30-minute mentoring conversation.", startAt: date(12, 14), endAt: date(12, 16) }),
+        event(taylor, { title: "Portfolio review slots", type: "appointmentSchedule", description: "Book a portfolio walkthrough.", startAt: date(18, 14), endAt: date(18, 16) }),
+        event(riley, { title: "Technical office hours", type: "appointmentSchedule", description: "Open slots for architecture questions.", startAt: date(27, 15), endAt: date(27, 17) }),
+        event(casey, { title: "Communications office hours", type: "appointmentSchedule", description: "Open slots for launch messaging.", startAt: date(9, 11), endAt: date(9, 13) }),
     ];
 
     return [...recurringRows, ...spreadRows, ...milestoneRows];
@@ -222,7 +226,7 @@ async function seed() {
         await clearDatabase();
 
         const profiles = await seedProfiles();
-        await seedWorkspaceAccount(profiles);
+        await seedAccounts(profiles);
         const calendars = await seedCalendars(profiles);
         await seedEvents(profiles, calendars);
 
@@ -241,10 +245,8 @@ async function seed() {
         console.log(`  Accounts:  ${counts[1]}`);
         console.log(`  Calendars: ${counts[2]}`);
         console.log(`  Events:    ${counts[3]}`);
-        console.log("\nTest User:");
-        console.log(`  Email: ${WORKSPACE_EMAIL} | Password: ${WORKSPACE_PASSWORD}`);
-        console.log("\nProfiles:");
-        for (const profile of profiles) console.log(`  ${profile.name} (${profile.email})`);
+        console.log("\nTest Users:");
+        for (const profile of profiles) console.log(`  Email: ${profile.email} | Password: ${DEMO_PASSWORD}`);
         console.log(`\nAll times are seeded in ${DEMO_TIME_ZONE}, relative to ${todayKey}.`);
         console.log("========================================\n");
     } catch (error) {

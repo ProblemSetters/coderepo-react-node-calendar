@@ -69,8 +69,8 @@ beforeEach(() => {
     mocks.insightDaily.mockResolvedValue(insights);
     mocks.peopleSearch.mockResolvedValue([participant]);
     mocks.profileList.mockResolvedValue([activeProfile, participant]);
-    mocks.authSession.mockResolvedValue({ account: { _id: "account-1", name: "Shared workspace", email: "workspace@calendar.com" } });
-    mocks.authLogin.mockResolvedValue({ account: { _id: "account-1", name: "Shared workspace", email: "workspace@calendar.com" }, token: "workspace-token" });
+    mocks.authSession.mockResolvedValue({ account: { _id: "account-1", name: "Alex Morgan", email: "alex.morgan@calendar.com" } });
+    mocks.authLogin.mockResolvedValue({ account: { _id: "account-1", name: "Alex Morgan", email: "alex.morgan@calendar.com" }, token: "workspace-token" });
     mocks.authSwitchProfile.mockImplementation(async (profileId) => ({ profile: [activeProfile, participant].find((profile) => profile._id === profileId), token: `profile-token-${profileId}` }));
     mocks.authLogout.mockResolvedValue(null);
     mocks.availabilitySuggestions.mockResolvedValue({
@@ -84,19 +84,21 @@ describe("application orchestration", () => {
         expect(["Alex Morgan", "Jordan Smith", "Taylor Johnson", "Riley Parker", "Casey Bennett"].map(identityInitials)).toEqual(["AM", "JS", "TJ", "RP", "CB"]);
     });
 
-    test("signs in once before exposing the switchable profiles", async () => {
+    test("signs in and opens the calendar of the person who signed in", async () => {
         localStorage.clear(); setSessionToken(""); setProfileToken("");
         render(<App />);
         expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
         expect(screen.getByTestId("password-input")).toHaveAttribute("type", "text");
         expect(screen.getByTestId("password-input")).toHaveAttribute("autocomplete", "off");
         expect(screen.getByTestId("password-input")).toHaveClass("workspace-password-input");
-        await userEvent.type(screen.getByTestId("email-input"), "workspace@calendar.com");
+        await userEvent.type(screen.getByTestId("email-input"), "alex.morgan@calendar.com");
         await userEvent.type(screen.getByTestId("password-input"), "password123");
         await userEvent.click(screen.getByRole("button", { name: "Next" }));
-        expect(mocks.authLogin).toHaveBeenCalledWith("workspace@calendar.com", "password123");
-        expect(await screen.findByRole("heading", { name: "Choose an account" })).toBeInTheDocument();
+        expect(mocks.authLogin).toHaveBeenCalledWith("alex.morgan@calendar.com", "password123");
+        expect(await screen.findByRole("button", { name: "Alex Morgan profile" })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Choose an account" })).not.toBeInTheDocument();
         expect(localStorage.getItem("calendar-session-token")).toBe("workspace-token");
+        expect(localStorage.getItem("calendar-profile-id")).toBe(activeProfile._id);
     });
 
     test("restores a saved workspace without flashing login or profile screens", async () => {
@@ -109,7 +111,7 @@ describe("application orchestration", () => {
         expect(screen.queryByRole("heading", { name: "Sign in" })).not.toBeInTheDocument();
         expect(screen.queryByRole("heading", { name: "Choose an account" })).not.toBeInTheDocument();
 
-        await act(async () => { finishSession({ account: { _id: "account-1", name: "Shared workspace", email: "workspace@calendar.com" } }); });
+        await act(async () => { finishSession({ account: { _id: "account-1", name: "Alex Morgan", email: "alex.morgan@calendar.com" } }); });
         await waitFor(() => expect(mocks.profileList).toHaveBeenCalledTimes(1));
         expect(screen.getByRole("status", { name: "Opening Calendar" })).toBeInTheDocument();
         expect(screen.queryByRole("heading", { name: "Choose an account" })).not.toBeInTheDocument();
@@ -133,7 +135,7 @@ describe("application orchestration", () => {
         localStorage.clear(); setSessionToken(""); setProfileToken("");
         mocks.authLogin.mockRejectedValueOnce(new Error("Email or password is incorrect."));
         render(<App />);
-        await userEvent.type(await screen.findByTestId("email-input"), "workspace@calendar.com");
+        await userEvent.type(await screen.findByTestId("email-input"), "alex.morgan@calendar.com");
         await userEvent.type(screen.getByTestId("password-input"), "wrong-password");
         await userEvent.click(screen.getByRole("button", { name: "Next" }));
         expect(await screen.findByRole("alert")).toHaveTextContent("Email or password is incorrect.");
