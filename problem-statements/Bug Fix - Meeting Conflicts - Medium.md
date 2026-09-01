@@ -31,9 +31,9 @@ Your task is to fix the availability flow on the backend.
   ```
 - Find the **Team roadmap** event on the calendar. Expand its guest list. One guest accepted and the other answered "Maybe", so both are busy for that hour. Note the day and time, then close the event.
   ![Team roadmap guest list showing one yes and one maybe](ps-images/01-team-roadmap-guest-list.png)
-- Click the calendar grid on the same day, 30 minutes before Team roadmap starts, and set the end time to 30 minutes after it ends. Add the same two guests.
-- Observe that the editor reports "All guests are available", although Team roadmap falls inside this window and neither guest declined it.
-  ![Editor reporting all guests available while both guests are busy](ps-images/02-all-guests-available.png)
+- Click the calendar grid on the same day, 30 minutes before Team roadmap starts, and set the end time to 30 minutes after it ends. Add **Jordan Smith**, who accepted it.
+- Observe that the editor reports "All guests are available", although Team roadmap falls inside this window and she did not decline it.
+  ![Editor reporting all guests available while the guest is busy](ps-images/02-all-guests-available.png)
 - Discard that event. In the sidebar, add **Jordan Smith** under **Meet with**, then click **Suggested times**. Set the starting date to the day Team roadmap falls on.
 - Scroll the list of best available times. Observe that it offers the slots Team roadmap occupies, although Alex Morgan is already in that meeting.
   ![Suggested times offering a slot the organizer has already booked](ps-images/03-suggested-times-offers-booked-slot.png)
@@ -53,7 +53,7 @@ Your task is to fix the availability flow on the backend.
 - Reported busy blocks are trimmed to the window that was asked about.
 - Suggested times never proposes a slot that clashes with the organizer or any guest, and never proposes one outside working hours.
 
-**Note:** The screenshots were taken with the browser set to UTC, which is the zone the demo data is pinned to. Your own clock may shift the times you see on screen. The demo data is also generated relative to today, so the exact dates move.
+**Note:** The calendar always displays in UTC, whatever your machine is set to, so the times you see match the screenshots. The demo data is generated relative to today, so the exact dates move.
 
 **Note:** Review `technical-specs/MeetingConflicts.md` for the complete contract, including the busy rules and the request and response shapes for both availability endpoints.
 

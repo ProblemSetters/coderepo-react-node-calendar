@@ -9,8 +9,8 @@ const SEARCH_DAYS = 5;
 const REQUEST_DELAY = 250;
 const objectIdPattern = /^[0-9a-fA-F]{24}$/;
 
-const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true });
-const dateFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
+const timeFormatter = new Intl.DateTimeFormat("en-US", { timeZone: DISPLAY_TIME_ZONE, hour: "numeric", minute: "2-digit", hour12: true });
+const dateFormatter = new Intl.DateTimeFormat("en-US", { timeZone: DISPLAY_TIME_ZONE, weekday: "short", month: "short", day: "numeric" });
 const formatTime = (date) => timeFormatter.format(date).replace(/\s?(AM|PM)/i, (match) => match.trim().toLowerCase());
 
 export function SuggestedTimesSection({ cursor, durationMinutes, onChoose, people }) {

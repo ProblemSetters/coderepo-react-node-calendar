@@ -7,7 +7,7 @@ import { availabilityApi } from "./availability.api.js";
 import { DISPLAY_TIME_ZONE } from "../../shared/utils/time-zone.js";
 import { localDateKey, minutesOf } from "../../shared/utils/time-zone.js";
 
-const rawTimeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+const rawTimeFormatter = new Intl.DateTimeFormat("en-US", { timeZone: DISPLAY_TIME_ZONE, hour: "numeric", minute: "2-digit", hour12: true });
 const formatTime = (date) => rawTimeFormatter.format(date).replace(/\b(am|pm)\b/gi, (period) => period.toUpperCase());
 const dateFormatter = new Intl.DateTimeFormat("en-US", { timeZone: DISPLAY_TIME_ZONE, weekday: "short", month: "short", day: "numeric" });
 const sameDay = (left, right) => localDateKey(left) === localDateKey(right);
