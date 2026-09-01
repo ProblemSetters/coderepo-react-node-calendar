@@ -1,6 +1,4 @@
 **/problem-statements/ export-ignore
-backend/__tests__/regression/ export-ignore
-frontend/__tests__/ export-ignore
 .prettierrc export-ignore
 .prettierignore export-ignore
 .editorconfig export-ignore

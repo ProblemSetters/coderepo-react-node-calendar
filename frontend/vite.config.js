@@ -15,7 +15,6 @@ export default defineConfig({
     test: {
         globals: true,
         environment: "happy-dom",
-        setupFiles: "./__tests__/setup.js",
         include: ["__tests__/**/*.behavior.test.{js,jsx}"],
         exclude: ["node_modules", "dist"],
         fileParallelism: false,
