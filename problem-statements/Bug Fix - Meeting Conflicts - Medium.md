@@ -36,11 +36,13 @@ Your task is to fix the availability flow on the backend.
   ![Editor reporting all guests available while both guests are busy](ps-images/02-all-guests-available.png)
 - Discard that event. In the sidebar, add **Jordan Smith** under **Meet with**, then click **Suggested times**. Set the starting date to the day Team roadmap falls on.
 - Scroll the list of best available times. Observe that it offers the slots Team roadmap occupies, although Alex Morgan is already in that meeting.
-  ![Suggested times offering a slot the organizer has already booked](ps-images/03-find-a-time-offers-booked-slot.png)
-- With Jordan Smith still selected, move forward to a Tuesday about two weeks ahead. Her weekly meeting falls on that day, but her column is empty and no clash is reported.
-  ![Meet with showing no clash on a day the repeating meeting lands](ps-images/04-meet-with-no-clash.png)
+  ![Suggested times offering a slot the organizer has already booked](ps-images/03-suggested-times-offers-booked-slot.png)
+- **Weekly product planning repeats every Tuesday at 9:00 AM, and Jordan Smith accepted it.** Go back to the Tuesday of last week, click the grid at 9:00 AM, and add her as a guest. The clash is reported correctly.
+  ![Editor reporting the clash on the week the repeating meeting starts](ps-images/04-repeat-blocks-first-week.png)
+- Discard that event and repeat exactly the same steps on a Tuesday two or three weeks ahead. The meeting still repeats on that day, but now the editor reports no clash at all.
+  ![Editor reporting all guests available on a later week of the same repeating meeting](ps-images/05-repeat-free-in-later-weeks.png)
 - **Jordan Smith is out of office all day on the second Friday from today.** Create an event on that Friday and add her as a guest. Observe that she is reported as available.
-  ![Editor reporting a guest available while they are out of office](ps-images/05-out-of-office-guest-available.png)
+  ![Editor reporting a guest available while they are out of office](ps-images/06-out-of-office-guest-available.png)
 
 ## Expected Behavior
 
