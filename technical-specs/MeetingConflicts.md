@@ -2,36 +2,44 @@
 
 ## Overview
 
-Calendar warns you when a guest you invited is already busy, and proposes meeting slots that clash with nobody. Both features are served by the availability layer, and both are returning wrong answers. Your task is to repair that layer so a busy guest is reported as busy.
+Calendar is a scheduling app where a team keeps their calendars and invites each
+other to meetings. While an organizer picks a time, the event editor checks the
+guests and warns about anyone who is already busy. Suggested times offers slots
+that clash with nobody.
 
-Everything you need to change lives under `backend/src/features/availability/`. No frontend change is required.
+Both features are served by the same availability layer. A person is busy for
+anything on a calendar they own, and for any invitation they have not declined.
 
----
-
-## What counts as busy
-
-These are the rules the availability layer must enforce.
-
-1. **Overlap is judged across the whole window.** A meeting clashes when it starts before the proposed end and ends after the proposed start. Comparing only the window's start misses a meeting that begins inside it.
-2. **Intervals are half-open.** A meeting that ends exactly when the proposed slot begins does not clash, and neither does one that begins exactly when the slot ends.
-3. **Not declining means busy.** A guest is busy unless they declined. `needsAction` and `tentative` both still block. A person is also busy for events on a calendar they own, whatever their response.
-4. **Per-occurrence replies win.** For a repeating meeting, a reply scoped to one occurrence overrides a reply scoped to the series.
-5. **Every occurrence blocks.** A repeating meeting blocks time on each of its occurrences, not only the first.
-6. **All-day items split two ways.** An all-day `outOfOffice` blocks the day. Every other all-day item, including `workingLocation`, leaves the person free.
-7. **`workingLocation` never blocks**, all-day or not.
-8. **Reported blocks are clipped** to the window that was asked about, so a block never extends past it.
+Your task is to fix the availability layer in the backend so that a busy guest is
+reported as busy, and so that no suggested slot clashes with anyone.
 
 ---
 
-## API contract
+## Busy Rules
+
+| Rule | Behaviour |
+|------|-----------|
+| Overlap | A meeting clashes when it starts before the proposed end and ends after the proposed start |
+| Touching times | A meeting that ends exactly when the slot begins does not clash, and neither does one that begins exactly when it ends |
+| Replies | Busy unless declined, so `needsAction` and `tentative` both block |
+| Own calendar | Busy for anything on a calendar they own, whatever their reply |
+| Single occurrence reply | A reply scoped to one occurrence overrides the reply for the series |
+| Repeating meetings | Every occurrence blocks time, not only the first |
+| All-day out of office | Blocks the whole day |
+| All-day working location | Never blocks, and neither does a timed one |
+| Reported blocks | Clipped to the window that was asked about |
+
+---
+
+## API Contract
+
+All availability endpoints require authentication. Send `Authorization: Bearer <token>`.
 
 ---
 
 ### POST /api/v1/availability/conflicts
 
 **Purpose:** Report which of the selected people are busy inside a proposed window, and whether that window sits inside everyone's working hours.
-
-**Auth:** Required. A profile-scoped bearer token.
 
 **Request Body:**
 ```json
@@ -97,8 +105,6 @@ These are the rules the availability layer must enforce.
 
 **Purpose:** Propose meeting slots that clash with neither the organizer nor any selected guest.
 
-**Auth:** Required. A profile-scoped bearer token.
-
 **Request Body:**
 ```json
 {
@@ -157,9 +163,8 @@ Further rules:
 
 ---
 
-## Additional information
+## Additional Information
 
-1. Busy titles are private to these two endpoints. `GET /api/v1/people` never returns `busyBlocks`.
-2. Calendar-day iteration is time-zone aware rather than a fixed 24-hour step, so local working hours stay correct across daylight-saving transitions.
-3. The editor debounces the conflict check while values change, and repeats it immediately before save. A conflict warns but never blocks an intentional save.
-4. Your solution must pass every test in `backend/__tests__/task1/`.
+- To manually reset the database, execute `bun run seed` command, and reload the frontend preview.
+- The code repository may intentionally contain other issues that are unrelated to this specific task. Please focus only on the described task requirements and address bugs or errors directly associated with them.
+- If you're using Run and Debug mode in the IDE, the frontend server may start before the backend (including database seeding) is ready. In that case, the frontend might not display any data. Please reload the preview once the backend setup is complete.
