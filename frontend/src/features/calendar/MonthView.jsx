@@ -51,7 +51,7 @@ export function MonthView({ calendars, cursor, events, onCreate, onDaySelect, on
                 {dates.map((date) => {
                     const dayEvents = events.filter((event) => overlapsDate(event, date));
                     const shown = dayEvents.slice(0, 3);
-                    return <div className={`month-cell ${date.getMonth() !== cursor.getMonth() ? "outside" : ""} ${isSameDay(date, new Date()) ? "today" : ""}`} data-testid={`calendar-day-${dateKey(date)}`} key={dateKey(date)} onDoubleClick={(clickEvent) => { if (clickEvent.target.closest("button")) return; const startAt = new Date(date); startAt.setHours(9, 0, 0, 0); onCreate(startAt); }}>
+                    return <div className={`month-cell ${date.getMonth() !== cursor.getMonth() ? "outside" : ""} ${isSameDay(date, new Date()) ? "today" : ""}`} data-testid={`calendar-day-${dateKey(date)}`} key={dateKey(date)} onClick={(clickEvent) => { if (clickEvent.target.closest("button")) return; const startAt = new Date(date); startAt.setHours(9, 0, 0, 0); onCreate(startAt); }}>
                         <button className="month-date" aria-label={`Open ${date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}`} onClick={() => onDaySelect(date)}>{date.getDate()}</button>
                         <div className="month-events">
                             {shown.map((event) => {

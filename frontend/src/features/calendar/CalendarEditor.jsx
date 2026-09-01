@@ -84,5 +84,5 @@ export function CalendarEditor({ calendar, onClose, onDelete, onSave, usedColors
                 <button className="primary-button" data-testid="create-calendar-submit" disabled={saving || !name.trim()}>{saving ? (editing ? "Saving…" : "Creating…") : (editing ? "Save" : "Create calendar")}</button>
             </footer>
         </form>
-    </Modal>{deleteConfirmation && <ConfirmationDialog busy={deleting} confirmLabel="Delete" destructive message={`“${calendar.name}” will be permanently removed. Only empty calendars can be deleted.`} onCancel={() => setDeleteConfirmation(false)} onConfirm={remove} title="Delete calendar?" />}</>;
+    </Modal>{deleteConfirmation && <ConfirmationDialog busy={deleting} confirmLabel="Delete" message={`“${calendar.name}” will be permanently removed. Only empty calendars can be deleted.`} onCancel={() => setDeleteConfirmation(false)} onConfirm={remove} title="Delete calendar?" />}</>;
 }

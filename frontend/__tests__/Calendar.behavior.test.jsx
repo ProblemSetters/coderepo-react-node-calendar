@@ -374,8 +374,8 @@ describe("event behavior", () => {
         render(<EventEditor calendars={[{ _id: "calendar-1", name: "My calendar", visible: true }]} draft={{ type: "event", cursor: new Date("2026-08-27T10:00:00") }} onClose={onClose} onSave={vi.fn()} />);
         await userEvent.type(screen.getByTestId("event-title-input"), "Planning");
         await userEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
-        const confirmation = screen.getByRole("dialog", { name: "Discard changes?" });
-        expect(within(confirmation).getByText(/have not been saved/)).toBeInTheDocument();
+        const confirmation = screen.getByRole("dialog", { name: "Discard unsaved changes?" });
+        expect(within(confirmation).getByRole("heading", { name: "Discard unsaved changes?" })).toBeInTheDocument();
         expect(onClose).not.toHaveBeenCalled();
         await userEvent.click(within(confirmation).getByRole("button", { name: "Discard" }));
         expect(onClose).toHaveBeenCalledOnce();
