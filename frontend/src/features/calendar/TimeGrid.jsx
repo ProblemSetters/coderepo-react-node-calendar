@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { addDays, dateKey, formatTime, formatTimeZoneOffset, isSameDay, startOfWeek } from "../../shared/utils/date.js";
+import { addDays, dateKey, formatTime, formatTimeZoneOffset, isSameDay, startOfDay, startOfWeek } from "../../shared/utils/date.js";
+import { formatInZone, minutesOf, partsAt, zonedDateTime } from "../../shared/utils/time-zone.js";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { getEventColumnGeometry, layoutTimedEvents } from "./event-layout.js";
 import { foregroundForColor, overlapColor } from "./calendar-colors.js";
@@ -12,9 +13,9 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
     const scrollReference = useRef(null);
     const headerReference = useRef(null);
     const today = new Date();
-    const start = days === 1 ? new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()) : startOfWeek(cursor);
+    const start = days === 1 ? startOfDay(cursor) : startOfWeek(cursor);
     const dates = Array.from({ length: days }, (_, index) => addDays(start, index));
-    const overlapsDate = (event, date) => new Date(event.startAt) < addDays(new Date(date.getFullYear(), date.getMonth(), date.getDate()), 1) && new Date(event.endAt) > new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const overlapsDate = (event, date) => new Date(event.startAt) < addDays(startOfDay(date), 1) && new Date(event.endAt) > startOfDay(date);
     const workingLocations = events.filter((event) => event.allDay && event.type === "workingLocation");
     const allDayEvents = events.filter((event) => event.allDay && event.type !== "workingLocation");
     const timedEvents = events.filter((event) => !event.allDay);
@@ -24,9 +25,9 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
         const viewport = scrollReference.current;
         if (!viewport) return;
         const now = new Date();
-        const viewStart = days === 1 ? new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()) : startOfWeek(cursor);
+        const viewStart = days === 1 ? startOfDay(cursor) : startOfWeek(cursor);
         const containsToday = now >= viewStart && now < addDays(viewStart, days);
-        const targetHour = containsToday ? Math.max(0, now.getHours() - 2) : 7;
+        const targetHour = containsToday ? Math.max(0, Math.floor(minutesOf(now) / 60) - 2) : 7;
         viewport.scrollTop = targetHour * hourHeight;
     }, [cursor, days]);
     return (
@@ -36,7 +37,7 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
                 {dates.map((date) => {
                     const location = workingLocations.find((event) => overlapsDate(event, date));
                     return <div key={dateKey(date)} className={`day-heading ${isSameDay(date, today) ? "today" : ""}`} data-testid={`calendar-day-${dateKey(date)}`}>
-                        <button className="day-heading-date" aria-label={`Create event on ${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`} onClick={() => { const startAt = new Date(date); startAt.setHours(9, 0, 0, 0); onCreate(startAt); }}><span>{date.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{date.getDate()}</strong></button>
+                        <button className="day-heading-date" aria-label={`Create event on ${formatInZone(date, { month: "long", day: "numeric", year: "numeric" })}`} onClick={() => onCreate(zonedDateTime(dateKey(date), 9 * 60))}><span>{formatInZone(date, { weekday: "short" })}</span><strong>{partsAt(date).day}</strong></button>
                         {location && <button className="day-location-chip" onClick={() => onEventSelect(location)} aria-label={`Working location: ${location.title}`}><MaterialIcon size={14}>business</MaterialIcon><span>{location.title}</span></button>}
                     </div>;
                 })}
@@ -45,17 +46,17 @@ export function TimeGrid({ calendars, cursor, days, events, onCreate, onEventSel
             </div>
             <div className="time-view-scroll" ref={scrollReference} onScroll={(event) => { if (headerReference.current) headerReference.current.scrollLeft = event.currentTarget.scrollLeft; }}>
                 <div className="time-grid" style={{ gridTemplateColumns: `80px repeat(${days}, minmax(130px, 1fr))`, height: `${24 * hourHeight}px`, "--hour-row": `${hourHeight}px` }}>
-                    <div className="time-axis">{Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ top: `${hour * hourHeight - 7}px` }}>{hour === 0 ? "" : new Date(2000, 0, 1, hour).toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}</span>)}</div>
+                    <div className="time-axis">{Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ top: `${hour * hourHeight - 7}px` }}>{hour === 0 ? "" : formatInZone(Date.UTC(2000, 0, 1, hour), { hour: "numeric", hour12: true })}</span>)}</div>
                     {dates.map((date) => {
-                        const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                        const dayStart = startOfDay(date);
                         const dayEnd = addDays(dayStart, 1);
                         const dayEvents = timedEvents.filter((event) => new Date(event.startAt) < dayEnd && new Date(event.endAt) > dayStart).map((event) => ({ ...event, originalEvent: event, startAt: new Date(Math.max(new Date(event.startAt), dayStart)), endAt: new Date(Math.min(new Date(event.endAt), dayEnd)) }));
                         const layout = layoutTimedEvents(dayEvents);
-                    return <div key={dateKey(date)} className="time-column" style={{ "--event-hover-layer": timeGridLayers.eventHover, "--current-time-layer": timeGridLayers.currentTime }} onClick={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); const minutes = Math.max(0, Math.min(1439, ((event.clientY - bounds.top) / hourHeight) * 60)); const slot = Math.floor(minutes / 30); const startAt = new Date(date); startAt.setHours(Math.floor(slot / 2), (slot % 2) * 30, 0, 0); onCreate(startAt); }}>
-                            {isSameDay(date, today) && <div className="current-time" style={{ top: `${(today.getHours() + today.getMinutes() / 60) * hourHeight}px` }}><i /></div>}
+                    return <div key={dateKey(date)} className="time-column" style={{ "--event-hover-layer": timeGridLayers.eventHover, "--current-time-layer": timeGridLayers.currentTime }} onClick={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); const minutes = Math.max(0, Math.min(1439, ((event.clientY - bounds.top) / hourHeight) * 60)); const slot = Math.floor(minutes / 30); onCreate(zonedDateTime(dateKey(date), slot * 30)); }}>
+                            {isSameDay(date, today) && <div className="current-time" style={{ top: `${(minutesOf(today) / 60) * hourHeight}px` }}><i /></div>}
                             {layout.map(({ event, column, columns }) => {
                                 const eventStart = new Date(event.startAt); const eventEnd = new Date(event.endAt);
-                                const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes();
+                                const startMinutes = minutesOf(eventStart);
                                 const actualDurationMinutes = Math.max(1, (eventEnd - eventStart) / 60000);
                                 const durationMinutes = Math.max(30, actualDurationMinutes);
                                 const rawTop = startMinutes / 60 * hourHeight;

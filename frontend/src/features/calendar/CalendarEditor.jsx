@@ -4,11 +4,12 @@ import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { Modal } from "../../shared/components/Modal.jsx";
 import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 import { calendarColors, nextAvailableCalendarColor } from "./calendar-colors.js";
+import { DISPLAY_TIME_ZONE } from "../../shared/utils/time-zone.js";
 
 const commonTimeZones = ["UTC", "Asia/Kolkata", "Asia/Singapore", "Europe/London", "Europe/Paris", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"];
 
 export function CalendarEditor({ calendar, onClose, onDelete, onSave, usedColors = [] }) {
-    const resolvedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const resolvedTimeZone = DISPLAY_TIME_ZONE;
     const localTimeZone = resolvedTimeZone === "Asia/Calcutta" ? "Asia/Kolkata" : resolvedTimeZone;
     const timeZones = useMemo(() => [...new Set([localTimeZone, ...commonTimeZones])], [localTimeZone]);
     const editing = Boolean(calendar);

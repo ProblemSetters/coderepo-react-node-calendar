@@ -1,15 +1,14 @@
 import { request } from "../../shared/api/client.js";
+import { addCalendarDays, zonedDateTime } from "../../shared/utils/time-zone.js";
 
 export const eventApi = {
     list: (from, to, calendarIds) => request(`/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&calendarIds=${calendarIds.join(",")}`),
     search: (filters, calendarIds) => {
         const parameters = new URLSearchParams({ calendarIds: calendarIds.join(",") });
         for (const field of ["what", "who", "where", "exclude"]) if (filters[field]) parameters.set(field, filters[field]);
-        if (filters.from) parameters.set("from", new Date(`${filters.from}T00:00:00`).toISOString());
+        if (filters.from) parameters.set("from", zonedDateTime(filters.from, 0).toISOString());
         if (filters.to) {
-            const exclusiveEnd = new Date(`${filters.to}T00:00:00`);
-            exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
-            parameters.set("to", exclusiveEnd.toISOString());
+            parameters.set("to", zonedDateTime(addCalendarDays(filters.to, 1), 0).toISOString());
         }
         return request(`/events/search?${parameters.toString()}`);
     },

@@ -6,6 +6,7 @@ import { formatTime } from "../../shared/utils/date.js";
 import { identityInitials } from "../../shared/utils/identity.js";
 import { rsvpOptions, rsvpStatusLabels } from "./rsvp.js";
 import { recurrenceLabel } from "./RepeatSelector.jsx";
+import { formatInZone } from "../../shared/utils/time-zone.js";
 
 export function EventPreview({ calendar, error = "", event, onClose, onDelete, onEdit, onRespond, responding = false }) {
     const [pendingResponse, setPendingResponse] = useState(null);
@@ -32,7 +33,7 @@ export function EventPreview({ calendar, error = "", event, onClose, onDelete, o
     return <><Modal className="event-preview-modal" onClose={onClose}><article className="event-preview">
         <div className="preview-actions">{event.editable !== false && <><button className="icon-button" data-testid="preview-edit" title="Edit event" aria-label="Edit event" onClick={onEdit}><MaterialIcon size={20}>edit</MaterialIcon></button><button className="icon-button" data-testid="preview-delete" title="Delete event" aria-label="Delete event" onClick={() => { setDeleteError(""); setDeleteConfirmation(true); }}><MaterialIcon size={20}>delete</MaterialIcon></button></>}<button className="icon-button" data-testid="preview-close" title="Close" aria-label="Close" onClick={onClose}><MaterialIcon size={22}>close</MaterialIcon></button></div>
         <div className="preview-title"><i style={{ backgroundColor: event.color || calendar?.color }} /><h2>{event.title}</h2></div>
-        <div className="preview-detail"><MaterialIcon>schedule</MaterialIcon><span>{date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}<small>{event.allDay ? "All day" : `${formatTime(event.startAt)} – ${formatTime(event.endAt)}`}</small></span></div>
+        <div className="preview-detail"><MaterialIcon>schedule</MaterialIcon><span>{formatInZone(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}<small>{event.allDay ? "All day" : `${formatTime(event.startAt)} – ${formatTime(event.endAt)}`}</small></span></div>
         <div className="preview-detail"><MaterialIcon>{event.type === "outOfOffice" ? "event_busy" : "event"}</MaterialIcon><span>{typeLabels[event.type || "event"]}<small>{calendar?.name || event.calendarName || "Calendar"}</small></span></div>
         {recurring && <div className="preview-detail"><MaterialIcon>repeat</MaterialIcon><span>{recurrenceLabel(event.recurrence, event.seriesStartAt || event.startAt)}</span></div>}
         {event.editable === false && <div className="preview-detail preview-organizer"><MaterialIcon>person</MaterialIcon><span>{organizerName ? `Organized by ${organizerName}` : "Invited event"}</span></div>}

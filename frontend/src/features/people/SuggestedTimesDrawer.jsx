@@ -4,12 +4,14 @@ import { SelectMenu } from "../../shared/components/SelectMenu.jsx";
 import { toDateInput } from "../../shared/utils/date.js";
 import { identityInitials } from "../../shared/utils/identity.js";
 import { availabilityApi } from "./availability.api.js";
+import { DISPLAY_TIME_ZONE } from "../../shared/utils/time-zone.js";
+import { localDateKey, minutesOf } from "../../shared/utils/time-zone.js";
 
-const rawTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true });
+const rawTimeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 const formatTime = (date) => rawTimeFormatter.format(date).replace(/\b(am|pm)\b/gi, (period) => period.toUpperCase());
-const dateFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
-const sameDay = (left, right) => left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
-const minuteOfDay = (date) => date.getHours() * 60 + date.getMinutes();
+const dateFormatter = new Intl.DateTimeFormat("en-US", { timeZone: DISPLAY_TIME_ZONE, weekday: "short", month: "short", day: "numeric" });
+const sameDay = (left, right) => localDateKey(left) === localDateKey(right);
+const minuteOfDay = (date) => minutesOf(date);
 
 function AvailabilityTrack({ busy, color = "#5f6368", date, name }) {
     const blocks = busy.filter((block) => sameDay(new Date(block.startAt), date));
@@ -41,7 +43,7 @@ export function SuggestedTimesDrawer({ cursor, people, onChoose, onClose }) {
         const currentRequest = ++requestId.current;
         setStatus({ loading: true, error: "" });
         try {
-            const nextData = await availabilityApi.suggestions({ participantIds: people.map((person) => person._id), from: date, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, days: 5, durationMinutes });
+            const nextData = await availabilityApi.suggestions({ participantIds: people.map((person) => person._id), from: date, timeZone: DISPLAY_TIME_ZONE, days: 5, durationMinutes });
             if (requestId.current === currentRequest) { setData(nextData); setStatus({ loading: false, error: "" }); }
         } catch (error) {
             if (requestId.current === currentRequest) setStatus({ loading: false, error: error.message });

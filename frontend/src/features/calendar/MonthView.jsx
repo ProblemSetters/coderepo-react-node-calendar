@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { addDays, dateKey, formatTime, isSameDay, startOfMonth, startOfWeek } from "../../shared/utils/date.js";
+import { addDays, dateKey, formatTime, isSameDay, startOfDay, startOfMonth, startOfWeek } from "../../shared/utils/date.js";
+import { formatInZone, partsAt, zonedDateTime } from "../../shared/utils/time-zone.js";
 import { foregroundForColor } from "./calendar-colors.js";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 
@@ -10,7 +11,7 @@ export function MonthView({ calendars, cursor, events, onCreate, onDaySelect, on
     const start = startOfWeek(startOfMonth(cursor));
     const dates = Array.from({ length: 42 }, (_, index) => addDays(start, index));
     const colorFor = (event) => event.color || calendars.find((calendar) => calendar._id === String(event.calendarId))?.color || "#1a73e8";
-    const overlapsDate = (event, date) => { const start = new Date(date.getFullYear(), date.getMonth(), date.getDate()); return new Date(event.startAt) < addDays(start, 1) && new Date(event.endAt) > start; };
+    const overlapsDate = (event, date) => { const start = startOfDay(date); return new Date(event.startAt) < addDays(start, 1) && new Date(event.endAt) > start; };
     useEffect(() => {
         if (!overflowDay) return undefined;
         const closeOnPointerDown = (event) => { if (!popoverReference.current?.contains(event.target)) setOverflowDay(null); };
@@ -31,9 +32,9 @@ export function MonthView({ calendars, cursor, events, onCreate, onDaySelect, on
             width,
         });
     };
-    const overflowPopover = overflowDay && createPortal(<section className="month-day-popover" ref={popoverReference} role="dialog" aria-label={`Events on ${overflowDay.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`} style={{ left: `${overflowDay.left}px`, top: `${overflowDay.top}px`, width: `${overflowDay.width}px` }}>
+    const overflowPopover = overflowDay && createPortal(<section className="month-day-popover" ref={popoverReference} role="dialog" aria-label={`Events on ${formatInZone(overflowDay.date, { month: "long", day: "numeric", year: "numeric" })}`} style={{ left: `${overflowDay.left}px`, top: `${overflowDay.top}px`, width: `${overflowDay.width}px` }}>
         <button type="button" className="month-day-popover-close" aria-label="Close day events" onClick={() => setOverflowDay(null)}><MaterialIcon size={22}>close</MaterialIcon></button>
-        <button type="button" className={`month-day-popover-date ${isSameDay(overflowDay.date, new Date()) ? "today" : ""}`} aria-label={`Open ${overflowDay.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} in day view`} onClick={() => { const date = overflowDay.date; setOverflowDay(null); onDaySelect(date); }}><span>{overflowDay.date.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{overflowDay.date.getDate()}</strong></button>
+        <button type="button" className={`month-day-popover-date ${isSameDay(overflowDay.date, new Date()) ? "today" : ""}`} aria-label={`Open ${formatInZone(overflowDay.date, { weekday: "long", month: "long", day: "numeric" })} in day view`} onClick={() => { const date = overflowDay.date; setOverflowDay(null); onDaySelect(date); }}><span>{formatInZone(overflowDay.date, { weekday: "short" })}</span><strong>{partsAt(overflowDay.date).day}</strong></button>
         <div className="month-day-popover-events">{overflowDay.events.map((event) => {
             const background = colorFor(event);
             const time = event.allDay ? "" : isSameDay(event.startAt, overflowDay.date) ? formatTime(event.startAt) : "Continues";
@@ -51,8 +52,8 @@ export function MonthView({ calendars, cursor, events, onCreate, onDaySelect, on
                 {dates.map((date) => {
                     const dayEvents = events.filter((event) => overlapsDate(event, date));
                     const shown = dayEvents.slice(0, 3);
-                    return <div className={`month-cell ${date.getMonth() !== cursor.getMonth() ? "outside" : ""} ${isSameDay(date, new Date()) ? "today" : ""}`} data-testid={`calendar-day-${dateKey(date)}`} key={dateKey(date)} onClick={(clickEvent) => { if (clickEvent.target.closest("button")) return; const startAt = new Date(date); startAt.setHours(9, 0, 0, 0); onCreate(startAt); }}>
-                        <button className="month-date" aria-label={`Open ${date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}`} onClick={() => onDaySelect(date)}>{date.getDate()}</button>
+                    return <div className={`month-cell ${partsAt(date).month !== partsAt(cursor).month ? "outside" : ""} ${isSameDay(date, new Date()) ? "today" : ""}`} data-testid={`calendar-day-${dateKey(date)}`} key={dateKey(date)} onClick={(clickEvent) => { if (clickEvent.target.closest("button")) return; onCreate(zonedDateTime(dateKey(date), 9 * 60)); }}>
+                        <button className="month-date" aria-label={`Open ${formatInZone(date, { month: "long", day: "numeric", year: "numeric" })}`} onClick={() => onDaySelect(date)}>{partsAt(date).day}</button>
                         <div className="month-events">
                             {shown.map((event) => {
                                 const time = event.allDay ? "All day" : isSameDay(event.startAt, date) ? formatTime(event.startAt) : "Continues";

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MaterialIcon } from "../../shared/components/MaterialIcon.jsx";
 import { toDateInput } from "../../shared/utils/date.js";
 import { availabilityApi } from "../people/availability.api.js";
+import { DISPLAY_TIME_ZONE } from "../../shared/utils/time-zone.js";
 
 const VISIBLE_SUGGESTIONS = 5;
 const SEARCH_DAYS = 5;
@@ -30,7 +31,7 @@ export function SuggestedTimesSection({ cursor, durationMinutes, onChoose, peopl
             const next = await availabilityApi.suggestions({
                 participantIds: participantKey.split(","),
                 from,
-                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+                timeZone: DISPLAY_TIME_ZONE,
                 days: SEARCH_DAYS,
                 durationMinutes,
             });

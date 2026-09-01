@@ -1,3 +1,5 @@
+import { minutesOf, zonedDateTime } from "../../shared/utils/time-zone.js";
+
 const pad = (value) => String(value).padStart(2, "0");
 
 export function parseTimeInput(input) {
@@ -35,13 +37,14 @@ export function formatTimeInput(value) {
 }
 
 export function timeValue(date) {
-    const value = new Date(date);
-    return `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+    const minutes = minutesOf(date);
+    return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 
 export function combineDateAndTime(date, time) {
     const parsed = parseTimeInput(time);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !parsed) return null;
-    const value = new Date(`${date}T${parsed}:00`);
+    const [hour, minute] = parsed.split(":").map(Number);
+    const value = zonedDateTime(date, hour * 60 + minute);
     return Number.isNaN(value.getTime()) ? null : value;
 }

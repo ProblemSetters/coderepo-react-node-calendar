@@ -5,6 +5,8 @@ import { identityInitials } from "../../shared/utils/identity.js";
 import { getEventColumnGeometry, layoutTimedEvents } from "../calendar/event-layout.js";
 import { foregroundForColor } from "../calendar/calendar-colors.js";
 import { availabilityApi } from "./availability.api.js";
+import { DISPLAY_TIME_ZONE } from "../../shared/utils/time-zone.js";
+import { formatInZone, localDateKey, minutesOf, partsAt, zonedDateTime } from "../../shared/utils/time-zone.js";
 
 const hourHeight = 64;
 const ownerHours = { startMinute: 9 * 60, endMinute: 17 * 60 + 30 };
@@ -14,7 +16,7 @@ function BusyBlocks({ blocks, color, onSelect, person }) {
     return positioned.map(({ event, column, columns }) => {
         const start = new Date(event.startAt);
         const end = new Date(event.endAt);
-        const startMinute = start.getHours() * 60 + start.getMinutes();
+        const startMinute = minutesOf(start);
         const actualDurationMinutes = Math.max(1, (end - start) / 60000);
         const duration = Math.max(20, actualDurationMinutes);
         const density = actualDurationMinutes <= 30 ? "micro" : actualDurationMinutes < 60 ? "compact" : "comfortable";
@@ -36,7 +38,7 @@ function ScheduleColumn({ blocks, color, name, onBusySelect, onTryCreate, person
         {workingIntervals.map((interval) => {
             const start = new Date(interval.startAt);
             const end = new Date(interval.endAt);
-            const startMinute = start.getHours() * 60 + start.getMinutes();
+            const startMinute = minutesOf(start);
             const duration = Math.max(0, (end - start) / 60000);
             return <span aria-hidden="true" className="comparison-working-window" data-testid={`working-window-${person._id}`} key={interval.startAt} style={{ top: `${startMinute / 60 * hourHeight}px`, height: `${duration / 60 * hourHeight}px` }} />;
         })}
@@ -56,7 +58,7 @@ export function AvailabilityComparison({ cursor, onCreate, onEventSelect = () =>
         const currentRequest = ++requestId.current;
         setStatus({ loading: true, error: "" });
         try {
-            const result = await availabilityApi.suggestions({ participantIds: people.map((person) => person._id), from: toDateInput(day), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, days: 1, durationMinutes: 30 });
+            const result = await availabilityApi.suggestions({ participantIds: people.map((person) => person._id), from: toDateInput(day), timeZone: DISPLAY_TIME_ZONE, days: 1, durationMinutes: 30 });
             if (currentRequest === requestId.current) { setData(result); setStatus({ loading: false, error: "" }); }
         } catch (error) {
             if (currentRequest === requestId.current) setStatus({ loading: false, error: error.message });
@@ -83,8 +85,7 @@ export function AvailabilityComparison({ cursor, onCreate, onEventSelect = () =>
             setSlotNotice("Working hours could not be verified. Retry the comparison before scheduling.");
             return;
         }
-        const startAt = new Date(day);
-        startAt.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+        const startAt = zonedDateTime(localDateKey(day), minute);
         const clickedOutsideHours = !clickedWorkingIntervals.some((interval) => startAt >= new Date(interval.startAt) && startAt < new Date(interval.endAt));
         if (clickedPerson._id !== "owner" && clickedOutsideHours) {
             setSlotNotice("You can’t schedule events for this calendar.");
@@ -104,7 +105,7 @@ export function AvailabilityComparison({ cursor, onCreate, onEventSelect = () =>
         <div className="comparison-horizontal-scroll">
             <div className="comparison-content" style={{ minWidth: `${minWidth}px` }}>
                 <header className="comparison-header" style={{ gridTemplateColumns: `80px repeat(${columns.length}, minmax(190px, 1fr))` }}>
-                    <div className="comparison-date"><span>{day.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{day.getDate()}</strong><small>{formatTimeZoneOffset(day)}</small></div>
+                    <div className="comparison-date"><span>{formatInZone(day, { weekday: "short" })}</span><strong>{partsAt(day).day}</strong><small>{formatTimeZoneOffset(day)}</small></div>
                     {columns.map(({ person }) => <div className="comparison-person" key={person._id}>
                         <span className="person-avatar" style={{ backgroundColor: person.avatarColor }}>{identityInitials(person.name)}</span>
                         <strong title={person.email || person.name}>{person.name}</strong>
@@ -112,7 +113,7 @@ export function AvailabilityComparison({ cursor, onCreate, onEventSelect = () =>
                 </header>
                 <div className="comparison-vertical-scroll" ref={scrollReference}>
                     <div className="comparison-grid" style={{ gridTemplateColumns: `80px repeat(${columns.length}, minmax(190px, 1fr))`, height: `${24 * hourHeight}px` }}>
-                        <div className="time-axis comparison-axis">{Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ top: `${hour * hourHeight - 7}px` }}>{hour === 0 ? "" : new Date(2000, 0, 1, hour).toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}</span>)}</div>
+                        <div className="time-axis comparison-axis">{Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ top: `${hour * hourHeight - 7}px` }}>{hour === 0 ? "" : formatInZone(Date.UTC(2000, 0, 1, hour), { hour: "numeric", hour12: true })}</span>)}</div>
                         {columns.map(({ person, busy, workingIntervals }) => <ScheduleColumn blocks={busy} color={person.avatarColor || "#1a73e8"} key={person._id} name={person.name} onBusySelect={selectBusyEvent} onTryCreate={tryCreateAtMinute} person={person} workingIntervals={workingIntervals} />)}
                     </div>
                 </div>

@@ -18,7 +18,7 @@ import { ProfilePicker } from "./features/profiles/ProfilePicker.jsx";
 import { authApi } from "./features/auth/auth.api.js";
 import { WorkspaceLogin } from "./features/auth/WorkspaceLogin.jsx";
 import { hasProfileToken, hasSessionToken, setProfileToken, setSessionToken } from "./shared/api/client.js";
-import { addDays, getViewRange, startOfMonth } from "./shared/utils/date.js";
+import { addDays, getViewRange, startOfDay, startOfMonth } from "./shared/utils/date.js";
 
 function AppBootScreen() {
     return <main className="app-boot" aria-label="Opening Calendar" role="status">
@@ -68,7 +68,7 @@ export function CalendarWorkspace({ activeProfile, onLogout, onSwitchProfile }) 
     const [responsePending, setResponsePending] = useState(false);
     const visibleIds = useMemo(() => calendars.filter((calendar) => calendar.visible).map((calendar) => calendar._id), [calendars]);
     const range = useMemo(() => getViewRange(view, cursor), [view, cursor]);
-    const insightRange = useMemo(() => { const start = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()); return [start, addDays(start, 1)]; }, [cursor]);
+    const insightRange = useMemo(() => { const start = startOfDay(cursor); return [start, addDays(start, 1)]; }, [cursor]);
     const setView = useCallback((nextView) => { if (meetingPeople.length && nextView !== "day") setMeetingPeople([]); localStorage.setItem("calendar-view", nextView); setViewState(nextView); }, [meetingPeople.length]);
 
     const loadCalendars = useCallback(async () => {

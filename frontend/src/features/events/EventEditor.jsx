@@ -12,6 +12,7 @@ import { combineDateAndTime, formatTimeInput, timeValue } from "./editor-date-ti
 import { calendarColors } from "../calendar/calendar-colors.js";
 import { RepeatSelector } from "./RepeatSelector.jsx";
 import { SuggestedTimesSection } from "./SuggestedTimesSection.jsx";
+import { DISPLAY_TIME_ZONE, dayOfWeek, formatInZone, minutesOf } from "../../shared/utils/time-zone.js";
 
 const palette = [
     { color: "", label: "Calendar color" },
@@ -29,8 +30,8 @@ const typeConfig = {
 const shiftEndWithStart = (oldStart, oldEnd, newStart) => oldStart && oldEnd && newStart && oldEnd > oldStart ? new Date(newStart.getTime() + (oldEnd - oldStart)) : null;
 const durationLabel = (minutes) => minutes < 60 ? `${minutes} mins` : `${minutes / 60} ${minutes === 60 ? "hr" : "hrs"}`;
 const objectIdPattern = /^[0-9a-fA-F]{24}$/;
-const formatConflictTime = (value) => new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-const formatWorkingMinute = (minute) => new Date(2000, 0, 1, Math.floor(minute / 60), minute % 60).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+const formatConflictTime = (value) => formatInZone(value, { hour: "numeric", minute: "2-digit", hour12: true });
+const formatWorkingMinute = (minute) => formatInZone(Date.UTC(2000, 0, 1, Math.floor(minute / 60), minute % 60), { hour: "numeric", minute: "2-digit", hour12: true });
 const participantPeople = (draft, participants) => {
     if (Array.isArray(draft?.participantPeople) && draft.participantPeople.length) return draft.participantPeople;
     const seen = new Set();
@@ -62,7 +63,7 @@ export function EventEditor({ calendars, draft, onClose, onDelete, onSave }) {
     const [endTimeValid, setEndTimeValid] = useState(true);
     const [calendarId, setCalendarId] = useState(String(defaults.calendarId || ""));
     const [guests, setGuests] = useState(() => participantPeople(draft, defaults.participants || []));
-    const [recurrence, setRecurrence] = useState(defaults.recurrence || { frequency: "none", interval: 1, daysOfWeek: [], monthlyMode: "ordinalWeekday", endType: "never", count: null, until: null, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
+    const [recurrence, setRecurrence] = useState(defaults.recurrence || { frequency: "none", interval: 1, daysOfWeek: [], monthlyMode: "ordinalWeekday", endType: "never", count: null, until: null, timeZone: DISPLAY_TIME_ZONE });
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
@@ -92,7 +93,7 @@ export function EventEditor({ calendars, draft, onClose, onDelete, onSave }) {
         if (!validRange || !guestIds.length) return null;
         const conflictStart = allDay ? new Date(`${startDate}T00:00:00`) : combineDateAndTime(startDate, startTime);
         const conflictEnd = allDay ? addDays(new Date(`${endDate}T00:00:00`), 1) : combineDateAndTime(endDate, endTime);
-        return { participantIds: guestIds, startAt: conflictStart.toISOString(), endAt: conflictEnd.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" };
+        return { participantIds: guestIds, startAt: conflictStart.toISOString(), endAt: conflictEnd.toISOString(), timeZone: DISPLAY_TIME_ZONE };
     }, [allDay, endDate, endTime, guestIds, startDate, startTime, validRange]);
     const conflictKey = conflictPayload ? JSON.stringify(conflictPayload) : "";
     const conflictPending = Boolean(conflictPayload && conflictState.key !== conflictKey) || conflictState.checking;
@@ -141,8 +142,8 @@ export function EventEditor({ calendars, draft, onClose, onDelete, onSave }) {
             const durationDays = Math.max(0, Math.round((new Date(`${endDate}T00:00:00`) - new Date(`${startDate}T00:00:00`)) / 86400000));
             setEndDate(dateKey(addDays(new Date(`${nextDate}T00:00:00`), durationDays)));
         } else applyShiftedEnd(nextStart);
-        if (recurrence.frequency === "weekly" && recurrence.daysOfWeek?.length === 1 && recurrence.daysOfWeek[0] === new Date(`${startDate}T00:00:00`).getDay()) {
-            setRecurrence({ ...recurrence, daysOfWeek: [new Date(`${nextDate}T00:00:00`).getDay()] });
+        if (recurrence.frequency === "weekly" && recurrence.daysOfWeek?.length === 1 && recurrence.daysOfWeek[0] === dayOfWeek(startDate)) {
+            setRecurrence({ ...recurrence, daysOfWeek: [dayOfWeek(nextDate)] });
         }
         setStartDate(nextDate); markDirty();
     };
@@ -158,7 +159,7 @@ export function EventEditor({ calendars, draft, onClose, onDelete, onSave }) {
             const nextStart = combineDateAndTime(startDate, startTime);
             const nextEnd = combineDateAndTime(startDate, nextTime);
             if (nextStart && nextEnd) {
-                const crossesMidnight = nextEnd <= nextStart && nextStart.getHours() >= 12 && nextEnd.getHours() < 12;
+                const crossesMidnight = nextEnd <= nextStart && minutesOf(nextStart) >= 12 * 60 && minutesOf(nextEnd) < 12 * 60;
                 setEndDate(dateKey(crossesMidnight ? addDays(nextEnd, 1) : nextEnd));
             }
         }
