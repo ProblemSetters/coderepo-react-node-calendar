@@ -22,6 +22,5 @@ export default {
     clearMocks: true,
     resetMocks: true,
     restoreMocks: true,
-    passWithNoTests: true,
     collectCoverageFrom: ["src/features/**/*.js", "!src/**/index.js"],
 };
