@@ -8,8 +8,7 @@
     "scripts": {
         "start": "bun src/index.js",
         "dev": "bun --watch src/index.js",
-        "seed": "bun src/scripts/seed.js",
-        "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand"
+        "seed": "bun src/scripts/seed.js"
     },
     "dependencies": {
         "bcryptjs": "3.0.2",
@@ -19,11 +18,5 @@
         "jsonwebtoken": "9.0.2",
         "mongoose": "8.24.1",
         "zod": "4.3.6"
-    },
-    "devDependencies": {
-        "cross-env": "7.0.3",
-        "jest": "30.3.0",
-        "jest-junit": "17.0.0",
-        "supertest": "7.2.2"
     }
 }

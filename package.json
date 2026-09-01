@@ -8,20 +8,13 @@
 		"backend"
 	],
 	"scripts": {
-		"postinstall": "bash setup.sh --ensure-seeded",
 		"prestart": "bash setup.sh --start",
 		"start": "concurrently \"bun run dev:backend\" \"bun run dev:frontend\"",
 		"dev:frontend": "cd frontend && bun run dev",
 		"dev:backend": "cd backend && bun run dev",
-		"seed": "cd backend && bun run seed",
-		"clear": "rm -rf node_modules/ bun.lock .seed-signature && cd backend && rm -rf node_modules/ .env && cd .. && cd frontend && rm -rf node_modules/ .env && cd ..",
-		"test:task1": "cross-env NODE_OPTIONS=--experimental-vm-modules JEST_JUNIT_OUTPUT_NAME=task1.xml jest --config=backend/jest.config.js --testPathPatterns=backend/__tests__/task1 --runInBand"
+		"seed": "cd backend && bun run seed"
 	},
 	"devDependencies": {
-		"concurrently": "9.2.1",
-		"cross-env": "10.1.0",
-		"jest": "30.3.0",
-		"jest-junit": "16.0.0",
-		"supertest": "7.2.2"
+		"concurrently": "9.2.1"
 	}
 }

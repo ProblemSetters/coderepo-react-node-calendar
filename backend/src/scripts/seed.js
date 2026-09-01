@@ -12,7 +12,7 @@ import { loadConfig } from "../shared/config/index.js";
 import { demoColorFor } from "../shared/constants/demo-colors.js";
 import { addCalendarDays, dayOfWeek, localDateKey, partsAt, zonedDateTime } from "../shared/utils/time-zone.js";
 
-const config = loadConfig(false);
+const config = loadConfig();
 
 const DEMO_TIME_ZONE = "UTC";
 const DEMO_PASSWORD = "password123";
@@ -380,7 +380,7 @@ async function seed() {
         console.log(`  Accounts:  ${counts[1]}`);
         console.log(`  Calendars: ${counts[2]}`);
         console.log(`  Events:    ${counts[3]}`);
-        console.log("\nTest Users:");
+    console.log("\nDemo accounts:");
         for (const profile of profiles) console.log(`  Email: ${profile.email} | Password: ${DEMO_PASSWORD}`);
         console.log(`\nAll times are seeded in ${DEMO_TIME_ZONE}, relative to ${todayKey}.`);
         console.log("========================================\n");
