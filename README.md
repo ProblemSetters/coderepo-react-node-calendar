@@ -29,7 +29,7 @@
 │   ├── src/shared/              # API client, reusable controls, and utilities
 │   └── public/                  # Local static media
 ├── docs/                        # HackerRank Code Repo guidelines
-├── skills/validate/             # Read-only repository validation skill
+├── skills/validate/             # A skill to validates your repository 
 ├── .vscode/launch.json          # Backend debugger configuration
 ├── hackerrank.yml               # HackerRank install and run configuration
 └── setup.sh                     # MongoDB readiness and seed reset
