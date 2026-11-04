@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { SCORING_RUN, appDatabaseName, appDatabaseUri, loadEnvironment, testDatabaseName } from "./test-database.js";
+import { appDatabaseName, appDatabaseUri, loadEnvironment, testDatabaseName } from "./test-database.js";
 
 const SERVICE_TIMEOUT_MS = 3000;
 
@@ -33,14 +33,10 @@ export async function dropTestDatabases(shouldDrop) {
     }
 }
 
-// Run Tests starts from an empty <db>_test_scoring. Every other run gets its own database, and the
-// databases left by runs that were killed before their teardown are dropped here.
+// Every run gets its own database, and the databases left by runs that were killed before their
+// teardown are dropped here.
 export default async function globalSetup() {
     loadEnvironment();
-    if (process.env.TEST_RUN === SCORING_RUN) {
-        await dropTestDatabases((runId) => runId === SCORING_RUN);
-        return;
-    }
     process.env.TEST_RUN_ID = process.env.TEST_RUN_ID || String(process.pid);
     await dropTestDatabases((runId) => /^\d+$/.test(runId) && !isAlive(Number(runId)));
 }

@@ -1,5 +1,5 @@
 // A test whose request never gets an answer fails after this long. The slowest test takes under a
-// second, so a whole file of hanging tests still ends inside the 5-minute Run Tests limit.
+// second, so a whole file of hanging tests still ends in a few minutes.
 const TEST_TIMEOUT_MS = 15000;
 
 // reportTestSuiteErrors writes a failed testcase for a test file that fails to load, so it can
