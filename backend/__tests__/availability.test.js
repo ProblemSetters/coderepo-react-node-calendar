@@ -63,4 +63,18 @@ describe("Availability", () => {
             expect([response.status, errorCode(response)]).toEqual([400, "VALIDATION_ERROR"]);
         }
     });
+
+    test("never suggests a time that has passed, and cuts an event that started earlier to the asked time", async () => {
+        await jordan.post("/api/v1/events", eventBody(calendars.jordanPrimary, { title: "Workshop", startAt: "2030-06-03T09:00:00.000Z", endAt: "2030-06-03T11:00:00.000Z" }));
+
+        const past = await suggestions({ from: "2020-06-01" });
+        const overlapping = await conflictsFor("2030-06-03T10:30:00.000Z", "2030-06-03T11:30:00.000Z");
+
+        expect(past.status).toBe(200);
+        expect(past.body.data.suggestions).toEqual([]);
+        expect(overlapping.body.data.available).toBe(false);
+        expect(overlapping.body.data.conflicts.map((conflict) => conflict.busy.map((block) => [block.title, block.startAt, block.endAt]))).toEqual([
+            [["Workshop", "2030-06-03T10:30:00.000Z", "2030-06-03T11:00:00.000Z"]],
+        ]);
+    });
 });

@@ -34,4 +34,20 @@ describe("Repeating events", () => {
             "2030-03-11T13:00:00.000Z",
         ]);
     });
+
+    test("a yearly repeat lands on the same date each year and an every-other-day repeat skips a day", () => {
+        const yearly = repeating("2030-06-03T10:00:00.000Z", "2030-06-03T11:00:00.000Z", { frequency: "yearly", endType: "never" });
+        const everyOtherDay = repeating("2030-06-03T10:00:00.000Z", "2030-06-03T10:30:00.000Z", { frequency: "daily", interval: 2, endType: "never" });
+
+        expect(startsOf(yearly, "2030-01-01T00:00:00.000Z", "2033-01-01T00:00:00.000Z")).toEqual([
+            "2030-06-03T10:00:00.000Z",
+            "2031-06-03T10:00:00.000Z",
+            "2032-06-03T10:00:00.000Z",
+        ]);
+        expect(startsOf(everyOtherDay, "2030-06-01T00:00:00.000Z", "2030-06-09T00:00:00.000Z")).toEqual([
+            "2030-06-03T10:00:00.000Z",
+            "2030-06-05T10:00:00.000Z",
+            "2030-06-07T10:00:00.000Z",
+        ]);
+    });
 });

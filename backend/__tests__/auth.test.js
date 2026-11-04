@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "@jest/globals";
-import { PASSWORD, api, as, closeDatabase, createWorkspace, errorCode, openDatabase, resetDatabase, signIn, signInWorkspace } from "./support/api.js";
+import { PASSWORD, api, as, closeDatabase, createWorkspace, deactivateAccount, errorCode, openDatabase, resetDatabase, revokeProfileAccess, signIn, signInWorkspace } from "./support/api.js";
 
 let people;
 
@@ -65,5 +65,17 @@ describe("Sign-in and profiles", () => {
         expect(session.status).toBe(200);
         expect(session.body.data.account.email).toBe(people.alex.email);
         expect(signedOut.status).toBe(204);
+    });
+
+    test("stops accepting a token once the account loses that profile or is switched off", async () => {
+        const token = await signIn(people.alex);
+
+        await revokeProfileAccess(people.alex);
+        const profileRevoked = await as(token).get("/api/v1/calendars");
+        await deactivateAccount(people.alex);
+        const accountOff = await as(token).get("/api/v1/calendars");
+
+        expect([profileRevoked.status, errorCode(profileRevoked)]).toEqual([403, "PROFILE_FORBIDDEN"]);
+        expect([accountOff.status, errorCode(accountOff)]).toEqual([401, "ACCOUNT_UNAVAILABLE"]);
     });
 });

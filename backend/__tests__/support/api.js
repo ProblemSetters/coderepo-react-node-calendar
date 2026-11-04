@@ -101,3 +101,7 @@ export function eventBody(calendar, overrides = {}) {
 export function errorCode(response) {
     return response.body.error?.code;
 }
+
+// Change an account behind the app's back, the way an admin taking access away would.
+export const revokeProfileAccess = (person) => WorkspaceAccount.updateOne({ email: person.email }, { $set: { allowedProfileIds: [] } });
+export const deactivateAccount = (person) => WorkspaceAccount.updateOne({ email: person.email }, { $set: { active: false } });

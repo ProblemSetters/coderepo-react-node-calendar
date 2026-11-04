@@ -96,6 +96,38 @@ describe("Events", () => {
         expect(afterMove.body.data.responseStatus).toBe("needsAction");
     });
 
+    test("keeps answers when a guest is added, shuts out a removed guest, and resets answers when the repeat rule changes", async () => {
+        const taylor = as(await signIn(people.taylor));
+        const created = await alex.post("/api/v1/events", invitingJordan({ recurrence: WEEKLY }));
+        const path = `/api/v1/events/${created.body.data._id}`;
+        await jordan.patch(`${path}/response`, { status: "accepted" });
+
+        // The editor always sends the guest names and their ids together, so the test does the same.
+        const guests = (...guestPeople) => ({ participants: guestPeople.map((person) => person.name), participantIds: guestPeople.map((person) => String(person._id)) });
+        const added = await alex.patch(path, guests(people.jordan, people.taylor));
+        await taylor.patch(`${path}/response`, { status: "accepted" });
+        const removed = await alex.patch(path, guests(people.taylor));
+        const removedGuestOpens = await jordan.get(path);
+        await alex.patch(path, { recurrence: { ...WEEKLY, daysOfWeek: [1, 3] } });
+        const afterRuleChange = await taylor.get(path);
+
+        expect(added.body.data.participantPeople.map((guest) => [guest.name, guest.responseStatus])).toEqual([["Jordan Smith", "accepted"], ["Taylor Johnson", "needsAction"]]);
+        expect(removed.body.data.participantPeople.map((guest) => [guest.name, guest.responseStatus])).toEqual([["Taylor Johnson", "accepted"]]);
+        expect(removedGuestOpens.status).toBe(404);
+        expect(afterRuleChange.body.data.responseStatus).toBe("needsAction");
+    });
+
+    test("refuses a guest id that is malformed, unknown or listed twice", async () => {
+        const jordanId = String(people.jordan._id);
+        const malformed = await alex.post("/api/v1/events", eventBody(calendars.alexWork, { participantIds: ["not-an-id"] }));
+        const unknown = await alex.post("/api/v1/events", eventBody(calendars.alexWork, { participantIds: ["0123456789abcdef01234567"] }));
+        const twice = await alex.post("/api/v1/events", eventBody(calendars.alexWork, { participantIds: [jordanId, jordanId] }));
+
+        expect([malformed.status, errorCode(malformed)]).toEqual([400, "VALIDATION_ERROR"]);
+        expect([unknown.status, errorCode(unknown)]).toEqual([404, "PEOPLE_NOT_FOUND"]);
+        expect([twice.status, errorCode(twice)]).toEqual([400, "VALIDATION_ERROR"]);
+    });
+
     test("deletes an event and treats a malformed id as not found", async () => {
         const created = await alex.post("/api/v1/events", eventBody(calendars.alexWork));
         const path = `/api/v1/events/${created.body.data._id}`;
